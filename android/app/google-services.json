@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "79484274758",
+    "project_id": "calculator-7ae7b38d",
+    "storage_bucket": "calculator-7ae7b38d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79484274758:android:5d0e59bc21ac3a1a012247",
+        "android_client_info": {
+          "package_name": "com.markaz.alsunnah"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDj3xXojV3Om2yw1mdMfgP8SONP4s9MqHk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

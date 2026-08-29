@@ -1,0 +1,106 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
+
+import '../core/constants.dart';
+import '../models/quran.dart';
+
+/// نتيجة عملية قرآنية
+class QuranOpResult {
+  final bool success;
+  final String? errorMessage;
+
+  const QuranOpResult.ok() : success = true, errorMessage = null;
+  const QuranOpResult.fail(this.errorMessage) : success = false;
+}
+
+/// خدمة الأوراد القرآنية — كل الاستعلامات مُرشّحة بـ teacherId
+class QuranService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static String weekdayOf(DateTime date) =>
+      DateFormat('EEEE', 'ar').format(date);
+
+  /// بث كل تسجيلات معلم في مسار معيّن (تُجمّع لكل طالب في الذاكرة)
+  Stream<List<QuranRecording>> watchPathwayRecordings({
+    required String teacherId,
+    required String pathwayId,
+  }) {
+    return _firestore
+        .collection('quran_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .where('pathwayId', isEqualTo: pathwayId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((d) => QuranRecording.fromFirestore(d))
+          .toList();
+      list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
+      return list;
+    });
+  }
+
+  /// بث كل تسجيلات معلم في كل المسارات (لتقارير الإدارة)
+  Stream<List<QuranRecording>> watchAllTeacherRecordings(
+      String teacherId) {
+    return _firestore
+        .collection('quran_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((d) => QuranRecording.fromFirestore(d))
+            .toList());
+  }
+
+  /// تسجيل ورد يومي لطالب
+  Future<QuranOpResult> addWardRecording({
+    required String teacherId,
+    required String pathwayId,
+    required String studentId,
+    required DateTime date,
+    required int fromPage,
+    required int toPage,
+    String? notes,
+  }) async {
+    // تحقق من نطاق المصحف
+    if (fromPage < 1 || toPage > AppConstants.khatmaPages || toPage < fromPage) {
+      return QuranOpResult.fail(
+          'نطاق الصفحات غير صحيح (1 – ${AppConstants.khatmaPages})');
+    }
+
+    try {
+      await _firestore.collection('quran_recordings').add({
+        'teacherId': teacherId,
+        'pathwayId': pathwayId,
+        'studentId': studentId,
+        'weekday': weekdayOf(date),
+        'date': Timestamp.fromDate(date),
+        'fromPage': fromPage,
+        'toPage': toPage,
+        'count': toPage - fromPage + 1,
+        'notes': (notes != null && notes.trim().isNotEmpty)
+            ? notes.trim()
+            : null,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return const QuranOpResult.ok();
+    } catch (e) {
+      debugPrint('QuranService.addWardRecording error: $e');
+      return const QuranOpResult.fail('تعذّر حفظ الورد. حاول مجدداً.');
+    }
+  }
+
+  /// حذف تسجيل ورد
+  Future<QuranOpResult> deleteRecording(String recordingId) async {
+    try {
+      await _firestore
+          .collection('quran_recordings')
+          .doc(recordingId)
+          .delete();
+      return const QuranOpResult.ok();
+    } catch (e) {
+      debugPrint('QuranService.deleteRecording error: $e');
+      return const QuranOpResult.fail('تعذّر حذف التسجيل. حاول مجدداً.');
+    }
+  }
+}

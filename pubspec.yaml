@@ -1,0 +1,52 @@
+name: islamic_center_manager
+description: "مركز السنة للعلوم الشرعية وتأهيل الدعاة - نظام إدارة المركز"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Firebase (LOCKED versions - do not update)
+  firebase_core: 3.6.0
+  firebase_auth: 5.3.1
+  cloud_firestore: 5.4.3
+
+  # State management & storage
+  provider: 6.1.5+1
+  shared_preferences: 2.5.3
+
+  # Charts
+  fl_chart: 0.69.2
+
+  # Arabic font & date formatting
+  google_fonts: 6.2.1
+  intl: 0.20.2
+
+  # اختيار الصورة الشخصية من المعرض
+  image_picker: 1.1.2
+
+  # تصدير التقارير PDF (عربي RTL)
+  pdf: 3.11.1
+  printing: 5.13.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/pathways/
+    - assets/fonts/
