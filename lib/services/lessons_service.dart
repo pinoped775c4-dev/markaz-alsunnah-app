@@ -36,15 +36,15 @@ class LessonsService {
   static String weekdayOf(DateTime date) =>
       DateFormat('EEEE', 'ar').format(date);
 
-  // ================= إعداد الدرس الأولي =================
+  // ================= إعداد الدروس =================
 
-  /// بث الدرس الوحيد للمسار (إن وُجد)
+  /// بث كل دروس المسار للمعلم (قائمة متعددة — نمط المتون)
   ///
   /// ملاحظة مهمة: نستخدم شرطًا واحدًا فقط (teacherId) ثم نرشّح محليًا،
   /// لأن الجمع بين شرطي where على (teacherId + pathwayId) يتطلب فهرسًا
   /// مركبًا في Firestore — وغيابه كان يسبب تعليق الـ stream بلا رد.
   /// الاستعلام البسيط يعمل فورًا ويستفيد من الكاش المحلي عند انقطاع النت.
-  Stream<Lesson?> watchPathwayLesson({
+  Stream<List<Lesson>> watchPathwayLessons({
     required String teacherId,
     required String pathwayId,
   }) {
@@ -62,18 +62,71 @@ class LessonsService {
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
         .map((snapshot) {
+      final lessons = <Lesson>[];
       for (final doc in snapshot.docs) {
-        if (doc.data()['pathwayId'] == pathwayId) {
-          try {
-            return Lesson.fromFirestore(doc);
-          } catch (e) {
-            debugPrint('LessonsService: تعذّر تحويل بيانات الدرس: $e');
-            return null;
-          }
+        if (doc.data()['pathwayId'] != pathwayId) continue;
+        try {
+          lessons.add(Lesson.fromFirestore(doc));
+        } catch (e) {
+          debugPrint('LessonsService: تعذّر تحويل بيانات الدرس: $e');
         }
       }
-      return null;
+      lessons.sort((a, b) {
+        final an = a.name;
+        final bn = b.name;
+        if (an != bn) return an.compareTo(bn);
+        final at = a.createdAt ?? DateTime(2000);
+        final bt = b.createdAt ?? DateTime(2000);
+        return at.compareTo(bt);
+      });
+      return lessons;
     });
+  }
+
+  /// حذف درس نهائًا مع كل تسجيلاته اليومية ووثائق حضوره
+  /// (نفس نمط deleteMatna — حذف بالدفعات لتجنّب حد الحجم)
+  Future<LessonOpResult> deleteLesson(Lesson lesson) async {
+    try {
+      final results = await Future.wait([
+        _firestore
+            .collection('lesson_recordings')
+            .where('teacherId', isEqualTo: lesson.teacherId)
+            .get(),
+        _firestore
+            .collection('attendance')
+            .where('lessonId', isEqualTo: lesson.id)
+            .get(),
+      ]);
+
+      // تسجيلات الدرس فقط (فلترة محلية لتفادي الفهرس المركب)
+      final recordingDocs = (results[0] as QuerySnapshot<Map<String, dynamic>>)
+          .docs
+          .where((d) => d.data()['lessonId'] == lesson.id)
+          .toList();
+      final attendanceDocs =
+          (results[1] as QuerySnapshot<Map<String, dynamic>>).docs;
+
+      // حذف بالدفعات (حد Firestore: 500 عملية للدفعية)
+      final batches = <WriteBatch>[_firestore.batch()];
+      batches.last.delete(_firestore.collection('lessons').doc(lesson.id));
+      int ops = 1;
+      for (final doc in [...recordingDocs, ...attendanceDocs]) {
+        if (ops >= 450) {
+          batches.add(_firestore.batch());
+          ops = 0;
+        }
+        batches.last.delete(doc.reference);
+        ops++;
+      }
+
+      for (final b in batches) {
+        await b.commit();
+      }
+      return const LessonOpResult.ok();
+    } catch (e) {
+      debugPrint('LessonsService.deleteLesson error: $e');
+      return const LessonOpResult.fail('تعذّر حذف الدرس. حاول مجدداً.');
+    }
   }
 
   /// إنشاء إعداد الدرس الأولي
