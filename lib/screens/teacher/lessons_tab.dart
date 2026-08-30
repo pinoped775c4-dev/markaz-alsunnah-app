@@ -700,6 +700,7 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
   final _notesController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
+  TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -732,11 +733,11 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
 
   Future<void> _loadStudents() async {
     try {
-      final stream = widget.studentsService.watchPathwayStudents(
+      // جلب مباشر get() — موثوق ولا يعلق مثل البث، فيظهر جدول الحضور فورًا
+      final students = await widget.studentsService.fetchPathwayStudents(
         teacherId: widget.lesson.teacherId,
         pathwayId: widget.pathway.id,
       );
-      final students = await stream.first;
       if (!mounted) return;
 
       if (_isEditing) {
@@ -794,6 +795,19 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(alwaysUse24HourFormat: false),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _selectedTime = picked);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -822,13 +836,18 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
     final absentIds =
         _students.map((s) => s.id).where((id) => !_presentIds.contains(id)).toList();
 
+    // دمج الزمن مع المدة في النص المحفوظ ليظهر في السجل والتقارير
+    final timeText = _selectedTime.format(context);
+    final durationText =
+        '${_durationController.text.trim()} • $timeText';
+
     LessonOpResult result;
     if (_isEditing) {
       result = await widget.lessonsService.updateRecording(
         recording: widget.editing!,
         oldCount: widget.editing!.count,
         date: _selectedDate,
-        duration: _durationController.text,
+        duration: durationText,
         from: from,
         to: to,
         notes: _notesController.text,
@@ -840,7 +859,7 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
       result = await widget.lessonsService.addDailyRecording(
         lesson: widget.lesson,
         date: _selectedDate,
-        duration: _durationController.text,
+        duration: durationText,
         from: from,
         to: to,
         notes: _notesController.text,
@@ -959,17 +978,35 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
                 ),
                 const SizedBox(height: 14),
 
-                // المدة (نص حر)
-                TextFormField(
-                  controller: _durationController,
-                  decoration: const InputDecoration(
-                    labelText: 'مدة الدرس *',
-                    hintText: 'مثال: ساعة ونصف، 45 دقيقة...',
-                    prefixIcon: Icon(Icons.schedule_rounded),
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'مدة الدرس مطلوبة'
-                      : null,
+                // الزمن + المدة
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _pickTime,
+                        child: _ReadOnlyField(
+                          label: 'زمن الدرس',
+                          value: _selectedTime.format(context),
+                          icon: Icons.access_time_rounded,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _durationController,
+                        decoration: const InputDecoration(
+                          labelText: 'مدة الدرس *',
+                          hintText: 'مثال: ساعة ونصف، 45 دقيقة...',
+                          prefixIcon: Icon(Icons.schedule_rounded),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'مدة الدرس مطلوبة'
+                            : null,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
 

@@ -37,6 +37,25 @@ class StudentsService {
     });
   }
 
+  // ================= جلب طلاب مسار معين مرة واحدة (موثوق) =================
+
+  /// جلب مباشر get() بدل البث — يُستخدم في حوار الدرس اليومي لضمان ظهور
+  /// جدول الحضور فورًا حتى لو تأخر البث أو علق في انتظار الخادم
+  Future<List<Student>> fetchPathwayStudents({
+    required String teacherId,
+    required String pathwayId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('students')
+        .where('teacherId', isEqualTo: teacherId)
+        .where('pathwayId', isEqualTo: pathwayId)
+        .get();
+    final students =
+        snapshot.docs.map((doc) => Student.fromFirestore(doc)).toList();
+    students.sort((a, b) => a.name.compareTo(b.name));
+    return students;
+  }
+
   // ================= عدد الطلاب لكل مسار (لإحصائيات لوحة المعلم) =================
 
   Stream<Map<String, int>> watchStudentCounts(String teacherId) {
