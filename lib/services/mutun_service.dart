@@ -9,13 +9,18 @@ class MutunOpResult {
   final bool success;
   final String? errorMessage;
   final String? docId;
+  /// المتن/التسجيل المُنشأ (إن وُجد) — يُستخدم للعرض المتفائل الفوري
+  final Matna? matna;
+  final MutunRecording? recording;
 
-  const MutunOpResult.ok({this.docId})
+  const MutunOpResult.ok({this.docId, this.matna, this.recording})
       : success = true,
         errorMessage = null;
   const MutunOpResult.fail(this.errorMessage)
       : success = false,
-        docId = null;
+        docId = null,
+        matna = null,
+        recording = null;
 }
 
 /// خدمة المتون — كل الاستعلامات مُرشّحة بـ teacherId للأمان
@@ -28,18 +33,32 @@ class MutunService {
   // ================= المتون (المقررات) =================
 
   /// بث متون مسار معيّن لمعلم (فرز في الذاكرة)
+  ///
+  /// ملاحظة مهمة: شرط واحد فقط (teacherId) ثم ترشيح pathwayId محليًا —
+  /// الجمع بين شرطي where يتطلب فهرسًا مركبًا في Firestore، وغيابه
+  /// كان يعلّق البث بلا رد فلا تظهر المتون المضافة للمستخدم إطلاقًا.
   Stream<List<Matna>> watchPathwayMutun({
     required String teacherId,
     required String pathwayId,
   }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا قبل أول snapshot
+    _firestore
+        .collection('mutun')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('MutunService warm-up get error: $e');
+    });
+
     return _firestore
         .collection('mutun')
         .where('teacherId', isEqualTo: teacherId)
-        .where('pathwayId', isEqualTo: pathwayId)
         .snapshots()
         .map((snapshot) {
-      final list =
-          snapshot.docs.map((d) => Matna.fromFirestore(d)).toList();
+      final list = snapshot.docs
+          .where((d) => d.data()['pathwayId'] == pathwayId)
+          .map((d) => Matna.fromFirestore(d))
+          .toList();
       list.sort((a, b) {
         final aTime = a.createdAt ?? DateTime(2000);
         final bTime = b.createdAt ?? DateTime(2000);
@@ -66,7 +85,18 @@ class MutunService {
         'totalCount': totalCount,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      return MutunOpResult.ok(docId: ref.id);
+      // بناء المتن محليًا — يتيح عرضه فورًا (تحديث متفائل)
+      // قبل وصول أول snapshot من البث.
+      final created = Matna(
+        id: ref.id,
+        teacherId: teacherId,
+        pathwayId: pathwayId,
+        name: name.trim(),
+        type: type,
+        totalCount: totalCount,
+        createdAt: DateTime.now(),
+      );
+      return MutunOpResult.ok(docId: ref.id, matna: created);
     } catch (e) {
       debugPrint('MutunService.addMatna error: $e');
       return const MutunOpResult.fail('تعذّرت إضافة المتن. تحقق من الاتصال وحاول مجدداً.');
@@ -97,17 +127,27 @@ class MutunService {
   // ================= تسجيلات الحفظ =================
 
   /// بث كل تسجيلات متن معيّن (لحساب تقدم كل طالب في الذاكرة)
+  /// شرط واحد (teacherId) + ترشيح matnaId محليًا — لتفادي الفهارس المركّبة
   Stream<List<MutunRecording>> watchMatnaRecordings({
     required String teacherId,
     required String matnaId,
   }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور التسجيلات حتى لو تأخر البث
+    _firestore
+        .collection('mutun_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('MutunService.watchMatnaRecordings warm-up error: $e');
+    });
+
     return _firestore
         .collection('mutun_recordings')
         .where('teacherId', isEqualTo: teacherId)
-        .where('matnaId', isEqualTo: matnaId)
         .snapshots()
         .map((snapshot) {
       final list = snapshot.docs
+          .where((d) => d.data()['matnaId'] == matnaId)
           .map((d) => MutunRecording.fromFirestore(d))
           .toList();
       list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
@@ -125,7 +165,7 @@ class MutunService {
     String? notes,
   }) async {
     try {
-      await _firestore.collection('mutun_recordings').add({
+      final ref = await _firestore.collection('mutun_recordings').add({
         'teacherId': matna.teacherId,
         'pathwayId': matna.pathwayId,
         'matnaId': matna.id,
@@ -140,7 +180,24 @@ class MutunService {
             : null,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      return const MutunOpResult.ok();
+      // بناء التسجيل محليًا — يتيح عرضه فورًا (تحديث متفائل)
+      final created = MutunRecording(
+        id: ref.id,
+        teacherId: matna.teacherId,
+        pathwayId: matna.pathwayId,
+        matnaId: matna.id,
+        studentId: studentId,
+        weekday: weekdayOf(date),
+        date: date,
+        from: from,
+        to: to,
+        count: to - from + 1,
+        notes: (notes != null && notes.trim().isNotEmpty)
+            ? notes.trim()
+            : null,
+        createdAt: DateTime.now(),
+      );
+      return MutunOpResult.ok(recording: created);
     } catch (e) {
       debugPrint('MutunService.addRecording error: $e');
       return const MutunOpResult.fail('تعذّر حفظ التسجيل. حاول مجدداً.');

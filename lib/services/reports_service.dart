@@ -173,15 +173,16 @@ class ReportsService {
           .collection('attendance')
           .where('lessonId', isEqualTo: lesson.id)
           .get(),
+      // استعلام بشرط واحد فقط (تجنّب الفهرس المركب) — الفلترة على pathwayId تتم محليًا
       _firestore
           .collection('students')
           .where('teacherId', isEqualTo: lesson.teacherId)
-          .where('pathwayId', isEqualTo: lesson.pathwayId)
           .get(),
     ]);
 
     final studentNames = <String, String>{
       for (final d in results[2].docs)
+        if (d.data()['pathwayId'] == lesson.pathwayId)
         d.id: (d.data()['name'] as String?) ?? 'طالب',
     };
 

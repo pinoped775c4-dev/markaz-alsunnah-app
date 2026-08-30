@@ -10,12 +10,22 @@ class LessonOpResult {
   final String? errorMessage;
   /// الدرس المُنشأ (إن وُجد) — يُستخدم للعرض المتفائل الفوري
   final Lesson? lesson;
+  /// تسجيل الدرس اليومي المُنشأ (إن وُجد) — للعرض المتفائل الفوري
+  final LessonRecording? recording;
 
-  const LessonOpResult.ok() : success = true, errorMessage = null, lesson = null;
+  const LessonOpResult.ok()
+      : success = true,
+        errorMessage = null,
+        lesson = null,
+        recording = null;
   const LessonOpResult.okWith(this.lesson)
-      : success = true, errorMessage = null;
+      : success = true, errorMessage = null, recording = null;
+  const LessonOpResult.okWithRecording(this.recording)
+      : success = true, errorMessage = null, lesson = null;
   const LessonOpResult.fail(this.errorMessage)
-      : success = false, lesson = null;
+      : success = false,
+        lesson = null,
+        recording = null;
 }
 
 /// خدمة الدروس — كل الاستعلامات مُرشّحة بـ teacherId للأمان
@@ -121,6 +131,10 @@ class LessonsService {
       final totalStudents =
           presentStudentIds.length + absentStudentIds.length;
 
+      // نجهّز معرّف التسجيل مسبقًا لنبني النموذج المحلي (عرض متفائل فوري)
+      final recordingRef =
+          _firestore.collection('lesson_recordings').doc();
+
       await _firestore.runTransaction((transaction) async {
         // 1) تحديث عداد الدرس المنجز
         final lessonRef =
@@ -131,8 +145,6 @@ class LessonsService {
         });
 
         // 2) إنشاء تسجيل الدرس اليومي
-        final recordingRef =
-            _firestore.collection('lesson_recordings').doc();
         transaction.set(recordingRef, {
           'lessonId': lesson.id,
           'teacherId': lesson.teacherId,
@@ -164,7 +176,24 @@ class LessonsService {
         });
       });
 
-      return const LessonOpResult.ok();
+      // البناء المحلي للتسجيل — يُعرض فورًا قبل وصول بث Firestore
+      final created = LessonRecording(
+        id: recordingRef.id,
+        lessonId: lesson.id,
+        teacherId: lesson.teacherId,
+        pathwayId: lesson.pathwayId,
+        weekday: weekdayOf(date),
+        date: date,
+        duration: duration.trim(),
+        from: from,
+        to: to,
+        count: count,
+        notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+        presentCount: presentStudentIds.length,
+        totalStudents: totalStudents,
+        createdAt: DateTime.now(),
+      );
+      return LessonOpResult.okWithRecording(created);
     } catch (e) {
       debugPrint('LessonsService.addDailyRecording error: $e');
       return const LessonOpResult.fail(
@@ -203,6 +232,15 @@ class LessonsService {
     // شرط واحد فقط (teacherId) + ترشيح lessonId محليًا —
     // الجمع بين شرطين يتطلب فهرسًا مركبًا قد يكون مفقودًا فيسبب
     // تعليق البث وعدم ظهور الإضافات للمستخدم.
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور السجل حتى لو تأخر البث.
+    _firestore
+        .collection('lesson_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('LessonsService.watchRecordings warm-up error: $e');
+    });
+
     return _firestore
         .collection('lesson_recordings')
         .where('teacherId', isEqualTo: teacherId)
@@ -324,7 +362,25 @@ class LessonsService {
               });
         }
       });
-      return const LessonOpResult.ok();
+
+      // البناء المحلي للتسجيل المُعدّل — للعرض المتفائل الفوري
+      final updated = LessonRecording(
+        id: recording.id,
+        lessonId: recording.lessonId,
+        teacherId: recording.teacherId,
+        pathwayId: recording.pathwayId,
+        weekday: weekdayOf(date),
+        date: date,
+        duration: duration.trim(),
+        from: from,
+        to: to,
+        count: newCount,
+        notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+        presentCount: presentStudentIds.length,
+        totalStudents: totalStudents,
+        createdAt: recording.createdAt,
+      );
+      return LessonOpResult.okWithRecording(updated);
     } catch (e) {
       debugPrint('LessonsService.updateRecording error: $e');
       return const LessonOpResult.fail('فشل تعديل التسجيل، حاول مرة أخرى');

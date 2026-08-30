@@ -440,7 +440,7 @@ class _TypeOption extends StatelessWidget {
 
 // ==================== الوضع اليومي ====================
 
-class _DailyLessonMode extends StatelessWidget {
+class _DailyLessonMode extends StatefulWidget {
   final PathwayInfo pathway;
   final Lesson lesson;
   final LessonsService lessonsService;
@@ -454,7 +454,35 @@ class _DailyLessonMode extends StatelessWidget {
   });
 
   @override
+  State<_DailyLessonMode> createState() => _DailyLessonModeState();
+}
+
+class _DailyLessonModeState extends State<_DailyLessonMode> {
+  /// سجلات مُنشأة/مُعدّلة محليًا — تُعرض فورًا قبل وصول بث Firestore
+  final Map<String, LessonRecording> _overlay = {};
+
+  void _onRecordingSaved(LessonRecording rec) {
+    if (!mounted) return;
+    setState(() => _overlay[rec.id] = rec);
+  }
+
+  /// دمج بث Firestore مع السجلات المحلية (المحلية تتفوق — أحدث دائمًا)
+  List<LessonRecording> _merge(List<LessonRecording> streamed) {
+    final merged = <String, LessonRecording>{
+      for (final r in streamed) r.id: r,
+    };
+    for (final r in _overlay.values) {
+      merged[r.id] = r;
+    }
+    final list = merged.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    return list;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lesson = widget.lesson;
+    final lessonsService = widget.lessonsService;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -489,13 +517,27 @@ class _DailyLessonMode extends StatelessWidget {
               );
             }
             if (!snapshot.hasData) {
+              // عرض متفائل: إن كان لدينا سجلات محلية نعرضها فورًا
+              if (_overlay.isNotEmpty) {
+                return Column(
+                  children: _merge(const [])
+                      .map((r) => _RecordingCard(
+                            recording: r,
+                            lesson: lesson,
+                            service: lessonsService,
+                            onEdit: () =>
+                                _showEditRecordingDialog(context, r),
+                          ))
+                      .toList(),
+                );
+              }
               return const Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(child: CircularProgressIndicator()),
               );
             }
 
-            final recordings = snapshot.data!;
+            final recordings = _merge(snapshot.data!);
             if (recordings.isEmpty) {
               return _HistoryEmpty(
                 onAdd: () => _showAddDailyLessonDialog(context),
@@ -523,10 +565,11 @@ class _DailyLessonMode extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => _DailyLessonDialog(
-        pathway: pathway,
-        lesson: lesson,
-        lessonsService: lessonsService,
-        studentsService: studentsService,
+        pathway: widget.pathway,
+        lesson: widget.lesson,
+        lessonsService: widget.lessonsService,
+        studentsService: widget.studentsService,
+        onSaved: _onRecordingSaved,
       ),
     );
   }
@@ -536,11 +579,12 @@ class _DailyLessonMode extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => _DailyLessonDialog(
-        pathway: pathway,
-        lesson: lesson,
-        lessonsService: lessonsService,
-        studentsService: studentsService,
+        pathway: widget.pathway,
+        lesson: widget.lesson,
+        lessonsService: widget.lessonsService,
+        studentsService: widget.studentsService,
         editing: recording,
+        onSaved: _onRecordingSaved,
       ),
     );
   }
@@ -704,12 +748,16 @@ class _DailyLessonDialog extends StatefulWidget {
   final StudentsService studentsService;
   final LessonRecording? editing;
 
+  /// يُستدع فور نجاح الحفظ بالتسجيل المُنشأ/المُعدّل — للعرض المتفائل
+  final ValueChanged<LessonRecording>? onSaved;
+
   const _DailyLessonDialog({
     required this.pathway,
     required this.lesson,
     required this.lessonsService,
     required this.studentsService,
     this.editing,
+    this.onSaved,
   });
 
   @override
@@ -895,7 +943,12 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
     if (!mounted) return;
 
     if (result.success) {
+      // عرض متفائل فوري: نمرّر التسجيل المُنشأ/المُعدّل قبل إغلاق الحوار
+      final rec = result.recording;
       Navigator.pop(context);
+      if (rec != null) {
+        widget.onSaved?.call(rec);
+      }
       showSuccessSnackBar(
         context,
         _isEditing ? 'تم تعديل التسجيل بنجاح' : 'تم تسجيل الدرس اليومي بنجاح',

@@ -22,17 +22,30 @@ class QuranService {
       DateFormat('EEEE', 'ar').format(date);
 
   /// بث كل تسجيلات معلم في مسار معيّن (تُجمّع لكل طالب في الذاكرة)
+  ///
+  /// شرط واحد فقط (teacherId) ثم ترشيح pathwayId محليًا —
+  /// الجمع بين شرطي where يتطلب فهرسًا مركبًا مفقودًا في Firestore
+  /// وكان يعلّق البث فلا تظهر تسجيلات الورد المضافة.
   Stream<List<QuranRecording>> watchPathwayRecordings({
     required String teacherId,
     required String pathwayId,
   }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور السجل حتى لو تأخر البث
+    _firestore
+        .collection('quran_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('QuranService.watchPathwayRecordings warm-up error: $e');
+    });
+
     return _firestore
         .collection('quran_recordings')
         .where('teacherId', isEqualTo: teacherId)
-        .where('pathwayId', isEqualTo: pathwayId)
         .snapshots()
         .map((snapshot) {
       final list = snapshot.docs
+          .where((d) => d.data()['pathwayId'] == pathwayId)
           .map((d) => QuranRecording.fromFirestore(d))
           .toList();
       list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً

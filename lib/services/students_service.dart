@@ -19,18 +19,32 @@ class StudentsService {
 
   // ================= بث طلاب مسار معين (للمعلم الحالي) =================
 
+  ///
+  /// شرط واحد فقط (teacherId) ثم ترشيح pathwayId محليًا —
+  /// الجمع بين شرطي where يتطلب فهرسًا مركبًا مفقودًا في Firestore،
+  /// وغيابه كان يعلّق قائمة الطلاب بلا رد (loading إلى الأبد).
   Stream<List<Student>> watchPathwayStudents({
     required String teacherId,
     required String pathwayId,
   }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور الطلاب حتى لو تأخر البث
+    _firestore
+        .collection('students')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('StudentsService warm-up get error: $e');
+    });
+
     return _firestore
         .collection('students')
         .where('teacherId', isEqualTo: teacherId)
-        .where('pathwayId', isEqualTo: pathwayId)
         .snapshots()
         .map((snapshot) {
-      final students =
-          snapshot.docs.map((doc) => Student.fromFirestore(doc)).toList();
+      final students = snapshot.docs
+          .where((doc) => doc.data()['pathwayId'] == pathwayId)
+          .map((doc) => Student.fromFirestore(doc))
+          .toList();
       // فرز أبجدي في الذاكرة لتفادي الفهارس المركّبة
       students.sort((a, b) => a.name.compareTo(b.name));
       return students;
@@ -48,10 +62,11 @@ class StudentsService {
     final snapshot = await _firestore
         .collection('students')
         .where('teacherId', isEqualTo: teacherId)
-        .where('pathwayId', isEqualTo: pathwayId)
         .get();
-    final students =
-        snapshot.docs.map((doc) => Student.fromFirestore(doc)).toList();
+    final students = snapshot.docs
+        .where((doc) => doc.data()['pathwayId'] == pathwayId)
+        .map((doc) => Student.fromFirestore(doc))
+        .toList();
     students.sort((a, b) => a.name.compareTo(b.name));
     return students;
   }
