@@ -33,6 +33,15 @@ class LessonsService {
     required String teacherId,
     required String pathwayId,
   }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور البيانات حتى لو تأخر البث
+    _firestore
+        .collection('lessons')
+        .where('teacherId', isEqualTo: teacherId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('LessonsService warm-up get error: $e');
+    });
+
     return _firestore
         .collection('lessons')
         .where('teacherId', isEqualTo: teacherId)
