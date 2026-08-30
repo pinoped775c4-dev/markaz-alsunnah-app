@@ -27,8 +27,7 @@ dependencies:
   # Charts
   fl_chart: 0.69.2
 
-  # Arabic font & date formatting
-  google_fonts: 6.2.1
+  # Arabic date formatting (الخط العربي أصبح أصلًا محليًا في assets/fonts)
   intl: 0.20.2
 
   # اختيار الصورة الشخصية من المعرض
@@ -50,3 +49,15 @@ flutter:
     - assets/images/
     - assets/pathways/
     - assets/fonts/
+
+  fonts:
+    - family: IBM Plex Sans Arabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700

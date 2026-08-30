@@ -8,9 +8,14 @@ import '../models/lesson.dart';
 class LessonOpResult {
   final bool success;
   final String? errorMessage;
+  /// الدرس المُنشأ (إن وُجد) — يُستخدم للعرض المتفائل الفوري
+  final Lesson? lesson;
 
-  const LessonOpResult.ok() : success = true, errorMessage = null;
-  const LessonOpResult.fail(this.errorMessage) : success = false;
+  const LessonOpResult.ok() : success = true, errorMessage = null, lesson = null;
+  const LessonOpResult.okWith(this.lesson)
+      : success = true, errorMessage = null;
+  const LessonOpResult.fail(this.errorMessage)
+      : success = false, lesson = null;
 }
 
 /// خدمة الدروس — كل الاستعلامات مُرشّحة بـ teacherId للأمان
@@ -70,7 +75,7 @@ class LessonsService {
     required int totalCount,
   }) async {
     try {
-      await _firestore.collection('lessons').add({
+      final docRef = await _firestore.collection('lessons').add({
         'teacherId': teacherId,
         'pathwayId': pathwayId,
         'name': name.trim(),
@@ -80,7 +85,19 @@ class LessonsService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      return const LessonOpResult.ok();
+      // بناء الدرس محليًا من المعرّف والقيم المُدخلة — يتيح عرضه فورًا
+      // (تحديث متفائل) قبل وصول أول snapshot من البث.
+      final created = Lesson(
+        id: docRef.id,
+        teacherId: teacherId,
+        pathwayId: pathwayId,
+        name: name.trim(),
+        type: type,
+        totalCount: totalCount,
+        completedCount: 0,
+        createdAt: DateTime.now(),
+      );
+      return LessonOpResult.okWith(created);
     } catch (e) {
       debugPrint('LessonsService.setupLesson error: $e');
       return const LessonOpResult.fail('فشل حفظ إعداد الدرس، حاول مرة أخرى');
@@ -183,13 +200,16 @@ class LessonsService {
     required String teacherId,
     required String lessonId,
   }) {
+    // شرط واحد فقط (teacherId) + ترشيح lessonId محليًا —
+    // الجمع بين شرطين يتطلب فهرسًا مركبًا قد يكون مفقودًا فيسبب
+    // تعليق البث وعدم ظهور الإضافات للمستخدم.
     return _firestore
         .collection('lesson_recordings')
         .where('teacherId', isEqualTo: teacherId)
-        .where('lessonId', isEqualTo: lessonId)
         .snapshots()
         .map((snapshot) {
       final recordings = snapshot.docs
+          .where((doc) => doc.data()['lessonId'] == lessonId)
           .map((doc) => LessonRecording.fromFirestore(doc))
           .toList();
       // الأحدث أولاً — فرز في الذاكرة لتفادي الفهارس المركّبة

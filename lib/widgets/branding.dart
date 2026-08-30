@@ -43,6 +43,10 @@ class WatermarkedBackground extends StatelessWidget {
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
+                // isComplex: يُخزَّن النقش في طبقة Skia مؤقتة بدل إعادة رسمه
+                // في كل إطار — النقش شفاف وثابت فلا داعي لإعادة الرسم
+                isComplex: true,
+                willChange: false,
                 painter: _IslamicPatternPainter(
                   color: isDark
                       ? Colors.white.withValues(alpha: patternOpacity * 0.9)
@@ -96,7 +100,9 @@ class _IslamicPatternPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8;
 
-    const double tile = 96;
+    // بلاطة أكبر = عناصر أقل بكثير لكل إطار — النقش يُرسم مرة واحدة
+    // ثم يُخزَّن في طبقة Skia (isComplex hint أسفل)
+    const double tile = 160;
     final int cols = (size.width / tile).ceil() + 1;
     final int rows = (size.height / tile).ceil() + 1;
 
@@ -107,7 +113,10 @@ class _IslamicPatternPainter extends CustomPainter {
         final dy = r * tile;
         final center = Offset(dx + tile / 2, dy + tile / 2);
         _drawEightPointStar(canvas, center, tile * 0.34, linePaint);
-        _drawOctagonRing(canvas, center, tile * 0.46, accentPaint);
+        // حلقة المثمنات على البلاطات الزوجية فقط — يوفر نصف الرسم
+        if ((r + c).isEven) {
+          _drawOctagonRing(canvas, center, tile * 0.46, accentPaint);
+        }
       }
     }
   }
@@ -183,8 +192,8 @@ class CircularLogo extends StatelessWidget {
             ? [
                 BoxShadow(
                   color: AppColors.primary.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ]
             : null,
@@ -251,10 +260,10 @@ class ProfileAvatar extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-        ],
+       ],
         image: image != null
             ? DecorationImage(image: image, fit: BoxFit.cover)
             : null,

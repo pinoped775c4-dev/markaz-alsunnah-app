@@ -33,6 +33,10 @@ class _LessonsTabState extends State<LessonsTab> {
 
   int _retryTick = 0;
 
+  /// الدرس المُنشأ محليًا (تحديث متفائل) — يُعرض فورًا بعد إعداد الدرس
+  /// قبل وصول أول snapshot من البث، حتى لا يبدو أن الإضافة "لم تُسجّل".
+  Lesson? _optimisticLesson;
+
   /// نتيجة التشخيص اليدوي (جلب get مباشر) — تظهر تحت مؤشر التحميل
   /// لنعرف فورًا هل البيانات موجودة أم لا، وما الخطأ الحقيقي إن وُجد
   String? _autoDiagnosis;
@@ -42,7 +46,7 @@ class _LessonsTabState extends State<LessonsTab> {
     super.initState();
     // جلب يدوي مباشر بالتوازي مع البث: إن نجح فالبيانات موجودة والبث
     // سيلحق بها، وإن فشل نكشف الخطأ الحقيقي فورًا بدل الانتظار الأعمى
-    Future.delayed(const Duration(seconds: 5), _autoCheck);
+    Future.delayed(const Duration(seconds: 2), _autoCheck);
   }
 
   Future<void> _autoCheck() async {
@@ -146,10 +150,23 @@ class _LessonsTabState extends State<LessonsTab> {
 
           // أول مرة: بطاقة الإعداد الأولي
           if (lesson == null) {
+            // تحديث متفائل: إذا أنشأ المعلم الدرس للتوّ نعرض الوضع اليومي
+            // فورًا حتى لو لم يصل snapshot البث بعد (كان هذا سبب "عدم الظهور")
+            if (_optimisticLesson != null) {
+              return _DailyLessonMode(
+                pathway: widget.pathway,
+                lesson: _optimisticLesson!,
+                lessonsService: _lessonsService,
+                studentsService: _studentsService,
+              );
+            }
             return _LessonSetupCard(
               pathway: widget.pathway,
               teacherId: widget.teacherId,
               service: _lessonsService,
+              onLessonCreated: (created) {
+                setState(() => _optimisticLesson = created);
+              },
             );
           }
 
@@ -172,11 +189,13 @@ class _LessonSetupCard extends StatefulWidget {
   final PathwayInfo pathway;
   final String teacherId;
   final LessonsService service;
+  final void Function(Lesson lesson) onLessonCreated;
 
   const _LessonSetupCard({
     required this.pathway,
     required this.teacherId,
     required this.service,
+    required this.onLessonCreated,
   });
 
   @override
@@ -214,6 +233,11 @@ class _LessonSetupCardState extends State<_LessonSetupCard> {
     setState(() => _isLoading = false);
 
     if (result.success) {
+      // عرض متفائل فوري: نرفع الدرس المُنشأ للتاب الأب ليُظهر الوضع
+      // اليومي فورًا — لا ننتظر وصول snapshot البث (كان سبب الخلل).
+      if (result.lesson != null) {
+        widget.onLessonCreated(result.lesson!);
+      }
       showSuccessSnackBar(context, 'تم إعداد الدرس بنجاح، ابدأ بتسجيل الدروس اليومية');
     } else {
       showErrorSnackBar(context, result.errorMessage!);
@@ -1629,7 +1653,7 @@ class _LessonLoadingViewState extends State<_LessonLoadingView> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 8), () {
+    _timer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _showHint = true);
     });
   }

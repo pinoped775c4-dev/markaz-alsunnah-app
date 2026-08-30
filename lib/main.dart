@@ -150,8 +150,8 @@ class _AppRouterState extends State<AppRouter> {
   @override
   void initState() {
     super.initState();
-    // عرض السبلاش 3 ثوانٍ على الأقل أثناء فحص الجلسة
-    Timer(const Duration(seconds: 3), () {
+    // عرض السبلاش 1200ms على الأقل أثناء فحص الجلسة (كانت 3 ثوانٍ = بطء مُحسوس)
+    Timer(const Duration(milliseconds: 1200), () {
       if (mounted) setState(() => _minSplashElapsed = true);
     });
     // فحص الجلسة الحالية بالتوازي

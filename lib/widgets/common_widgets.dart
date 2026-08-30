@@ -208,7 +208,11 @@ class ListItemSkeleton extends StatelessWidget {
   }
 }
 
-class _ShimmerBox extends StatefulWidget {
+/// صندوق skeleton ثابت (بلا animation) — سابقًا كان لكل صندوق
+/// AnimationController يعمل باستمرار (3 صناديق لكل سطر = 3
+/// controllers لا نهائية)، وهو استنزاف غير محسوس للبطارية والأداء.
+/// لون ثابت واحد بنفس مظهر التحميل الخفيف دون أي إعادة رسم.
+class _ShimmerBox extends StatelessWidget {
   final double width;
   final double height;
   final bool circle;
@@ -220,47 +224,15 @@ class _ShimmerBox extends StatefulWidget {
   });
 
   @override
-  State<_ShimmerBox> createState() => _ShimmerBoxState();
-}
-
-class _ShimmerBoxState extends State<_ShimmerBox>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final color =
-            Color.lerp(AppColors.lineSoft, AppColors.background,
-                _controller.value)!;
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            color: color,
-            shape: widget.circle ? BoxShape.circle : BoxShape.rectangle,
-            borderRadius:
-                widget.circle ? null : BorderRadius.circular(8),
-          ),
-        );
-      },
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.lineSoft,
+        shape: circle ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: circle ? null : BorderRadius.circular(8),
+      ),
     );
   }
 }

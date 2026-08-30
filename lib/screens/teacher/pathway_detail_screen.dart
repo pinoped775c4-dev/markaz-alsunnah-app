@@ -51,13 +51,22 @@ class PathwayDetailScreen extends StatelessWidget {
             buildTab(Icons.auto_stories_rounded, 'القرآن'),
           ];
 
+    // بناء lazy: التبويب لا يُركّب (ولا يبدأ استعلاماته) إلا عند أول ظهور —
+    // سابقًا كان TabBarView يبني كل التبويبات فورًا فتتزامن كل streams
+    // (طلاب + دروس + متون + قرآن) ويثقل التطبيق بلا داعٍ.
     final views = pathway.isQuranOnly
-        ? [QuranTab(pathway: pathway, teacherId: teacherId)]
+        ? [
+            _LazyTab(() => QuranTab(pathway: pathway, teacherId: teacherId))
+          ]
         : [
-            StudentsTab(pathway: pathway, teacherId: teacherId),
-            LessonsTab(pathway: pathway, teacherId: teacherId),
-            MutunTab(pathway: pathway, teacherId: teacherId),
-            QuranTab(pathway: pathway, teacherId: teacherId),
+            _LazyTab(
+                () => StudentsTab(pathway: pathway, teacherId: teacherId)),
+            _LazyTab(
+                () => LessonsTab(pathway: pathway, teacherId: teacherId)),
+            _LazyTab(
+                () => MutunTab(pathway: pathway, teacherId: teacherId)),
+            _LazyTab(
+                () => QuranTab(pathway: pathway, teacherId: teacherId)),
           ];
 
     return DefaultTabController(
@@ -137,6 +146,28 @@ class PathwayDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// تبويب كسول: لا يُنشئ محتواه (ولا يبدأ استعلاماته) إلا عند أول بناء فعلي
+/// بعد أن يفعّله المستخدم — يقلل الحمل الابتدائي لشاشة تفاصيل المسار.
+class _LazyTab extends StatefulWidget {
+  final Widget Function() builder;
+
+  const _LazyTab(this.builder);
+
+  @override
+  State<_LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<_LazyTab> {
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    // نُنشئ الابن مرة واحدة فقط عند أول build حقيقي لهذا التبويب
+    _child ??= KeyedSubtree(key: UniqueKey(), child: widget.builder());
+    return _child!;
   }
 }
 

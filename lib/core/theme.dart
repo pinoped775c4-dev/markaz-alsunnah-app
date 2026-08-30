@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// نظام التصميم الاحترافي لمركز السنة للعلوم الشرعية وتأهيل الدعاة
 /// هوية: أخضر زمردي عميق + ذهبي دافئ + رمادي حجري فاتح
@@ -70,7 +69,9 @@ class AppTheme {
   AppTheme._();
 
   static TextTheme _textTheme(TextTheme base, Color ink, Color secondary) {
-    final t = GoogleFonts.ibmPlexSansArabicTextTheme(base);
+    // خط IBM Plex Sans Arabic مُسجَّل كأصل محلي (assets/fonts) —
+    // لا جلب من الشبكة عند التشغيل (كان سبب بطء أول عرض وتحذيرات أداء)
+    final t = base.apply(fontFamily: 'IBM Plex Sans Arabic');
     return t.copyWith(
       displaySmall: t.displaySmall?.copyWith(
           fontWeight: FontWeight.bold, color: ink, height: 1.3),
