@@ -1,18 +1,24 @@
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/lesson.dart';
 import '../../models/student.dart';
+import '../../services/auth_service.dart';
 import '../../services/lessons_service.dart';
+import '../../services/report_pdf_service.dart';
+import '../../services/reports_service.dart';
 import '../../services/students_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// تبويب الدروس: إعداد أولي أو وضع يومي كامل
+/// تبويب الدروس — قائمة بطاقات دروس متعددة (نمط المتون)
+///
+/// لكل مسار يستطيع المعلم إنشاء أكثر من درس عام؛ كل درس بطاقة تُنقر
+/// فتفتح شاشة تفاصيل فيها سجل الدروس اليومية + الرسم البياني للمنجز +
+/// زر رفع تقرير الدروس للإدارة.
 class LessonsTab extends StatefulWidget {
   final PathwayInfo pathway;
   final String teacherId;
@@ -27,79 +33,25 @@ class LessonsTab extends StatefulWidget {
   State<LessonsTab> createState() => _LessonsTabState();
 }
 
-class _LessonsTabState extends State<LessonsTab> {
+class _LessonsTabState extends State<LessonsTab>
+    with AutomaticKeepAliveClientMixin {
   final LessonsService _lessonsService = LessonsService();
   final StudentsService _studentsService = StudentsService();
 
   int _retryTick = 0;
 
-  /// الدرس المُنشأ محليًا (تحديث متفائل) — يُعرض فورًا بعد إعداد الدرس
+  /// درس مُنشأ محليًا (تحديث متفائل) — يُعرض فورًا بعد الإضافة
   /// قبل وصول أول snapshot من البث، حتى لا يبدو أن الإضافة "لم تُسجّل".
   Lesson? _optimisticLesson;
 
-  /// نتيجة التشخيص اليدوي (جلب get مباشر) — تظهر تحت مؤشر التحميل
-  /// لنعرف فورًا هل البيانات موجودة أم لا، وما الخطأ الحقيقي إن وُجد
-  String? _autoDiagnosis;
-
   @override
-  void initState() {
-    super.initState();
-    // جلب يدوي مباشر بالتوازي مع البث: إن نجح فالبيانات موجودة والبث
-    // سيلحق بها، وإن فشل نكشف الخطأ الحقيقي فورًا بدل الانتظار الأعمى
-    Future.delayed(const Duration(seconds: 2), _autoCheck);
-  }
-
-  Future<void> _autoCheck() async {
-    if (!mounted || widget.teacherId.isEmpty) return;
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('lessons')
-          .where('teacherId', isEqualTo: widget.teacherId)
-          .get()
-          .timeout(const Duration(seconds: 12));
-      if (!mounted) return;
-      final matching =
-          snap.docs.where((d) => d.data()['pathwayId'] == widget.pathway.id);
-      setState(() {
-        if (snap.docs.isEmpty) {
-          _autoDiagnosis = 'الاتصال سليم — لا توجد دروس مسجلة لهذا الحساب بعد.\n'
-              'أنشئ درسك الأول من بطاقة الإعداد أدناه.';
-        } else if (matching.isEmpty) {
-          _autoDiagnosis = 'الاتصال سليم — لديك ${snap.docs.length} درسًا '
-              'لكن لا يطابق أحدها هذا المسار (${widget.pathway.id}).';
-        } else {
-          _autoDiagnosis = 'البيانات موجودة (${matching.length} درس) '
-              '— انتظر لحظة تحميل البث.';
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString();
-      setState(() {
-        if (msg.contains('permission')) {
-          _autoDiagnosis = '❌ رفض الوصول من قاعدة البيانات (PERMISSION_DENIED).\n'
-              'قواعد Firestore تمنع القراءة — يجب تعديلها من لوحة Firebase.';
-        } else {
-          _autoDiagnosis = 'تعذّر الفحص: $msg';
-        }
-      });
-    }
-  }
-
-  /// بث الدرس مباشرة بلا مهلة زمنية — الاستعلام بسيط (شرط واحد)
-  /// فيستجيب فورًا من Firestore أو من الكاش المحلي عند انقطاع النت.
-  /// أي خطأ حقيقي (مثل رفق الصلاحيات) يظهر فورًا عبر snapshot.hasError.
-  Stream<Lesson?> _lessonStream() {
-    return _lessonsService.watchPathwayLesson(
-      teacherId: widget.teacherId,
-      pathwayId: widget.pathway.id,
-    );
-  }
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    // حماية من الحالة التي تُفتح فيها الصفحة قبل اكتمال جلسة المعلم —
-    // teacherId الفارغ كان يسبب استعلامًا معلقًا بلا نتيجة ولا خطأ
+    super.build(context);
+
+    // حماية من الحالة التي تُفتح فيها الصفحة قبل اكتمال جلسة المعلم
     if (widget.teacherId.isEmpty) {
       return const Center(
         child: Padding(
@@ -116,98 +68,278 @@ class _LessonsTabState extends State<LessonsTab> {
       );
     }
 
-    // الاعتماد على _retryTick يجبر إعادة إنشاء الـ Stream عند إعادة المحاولة
-    return KeyedSubtree(
-      key: ValueKey(_retryTick),
-      child: StreamBuilder<Lesson?>(
-        stream: _lessonStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            debugPrint('LessonsTab stream error: ${snapshot.error}');
-            final isPermission =
-                snapshot.error.toString().contains('permission');
-            return ErrorState(
-              message: isPermission
-                  ? 'تم رفض الوصول من قاعدة البيانات.\n'
-                      'تأكد من قواعد أمان Firestore (تطلب تسجيل الدخول).\n\n'
-                      'التفاصيل: ${snapshot.error}'
-                  : 'تعذّر تحميل بيانات الدرس.\n'
-                      'تحقق من الاتصال بالإنترنت ثم أعد المحاولة.\n\n'
-                      'التفاصيل: ${snapshot.error}',
-              onRetry: () => setState(() => _retryTick++),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return _LessonLoadingView(
-              teacherId: widget.teacherId,
-              pathwayId: widget.pathway.id,
-              autoDiagnosis: _autoDiagnosis,
-            );
-          }
-
-          final lesson = snapshot.data;
-
-          // أول مرة: بطاقة الإعداد الأولي
-          if (lesson == null) {
-            // تحديث متفائل: إذا أنشأ المعلم الدرس للتوّ نعرض الوضع اليومي
-            // فورًا حتى لو لم يصل snapshot البث بعد (كان هذا سبب "عدم الظهور")
-            if (_optimisticLesson != null) {
-              return _DailyLessonMode(
-                pathway: widget.pathway,
-                lesson: _optimisticLesson!,
-                lessonsService: _lessonsService,
-                studentsService: _studentsService,
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'add_lesson_${widget.pathway.id}',
+        onPressed: () => _showAddLessonDialog(context),
+        icon: const Icon(Icons.add_circle_outline_rounded),
+        label: const Text('إضافة درس',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+      ),
+      body: KeyedSubtree(
+        key: ValueKey(_retryTick),
+        child: StreamBuilder<List<Lesson>>(
+          stream: _lessonsService.watchPathwayLessons(
+            teacherId: widget.teacherId,
+            pathwayId: widget.pathway.id,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              debugPrint('LessonsTab stream error: ${snapshot.error}');
+              final isPermission =
+                  snapshot.error.toString().contains('permission');
+              return ErrorState(
+                message: isPermission
+                    ? 'تم رفض الوصول من قاعدة البيانات.\n'
+                        'تأكد من قواعد أمان Firestore (تطلب تسجيل الدخول).'
+                    : 'تعذّر تحميل بيانات الدروس.\n'
+                        'تحقق من الاتصال بالإنترنت ثم أعد المحاولة.',
+                onRetry: () => setState(() => _retryTick++),
               );
             }
-            return _LessonSetupCard(
-              pathway: widget.pathway,
-              teacherId: widget.teacherId,
-              service: _lessonsService,
-              onLessonCreated: (created) {
-                setState(() => _optimisticLesson = created);
-              },
-            );
-          }
 
-          // الوضع اليومي
-          return _DailyLessonMode(
-            pathway: widget.pathway,
-            lesson: lesson,
-            lessonsService: _lessonsService,
-            studentsService: _studentsService,
-          );
+            if (!snapshot.hasData) {
+              return const ListSkeleton(itemCount: 4);
+            }
+
+            var lessons = snapshot.data!;
+
+            // عرض متفائل: دُرس أُنشئ للتوّ لم يصله البث بعد — يُدمج مقدمًا
+            if (_optimisticLesson != null &&
+                !lessons.any((l) => l.id == _optimisticLesson!.id)) {
+              lessons = [...lessons, _optimisticLesson!];
+            }
+
+            if (lessons.isEmpty) {
+              return EmptyState(
+                icon: Icons.menu_book_rounded,
+                title: 'لا توجد دروس بعد',
+                message:
+                    'أضف دروس هذا المسار العام لتسجل فيها الدروس اليومية\n'
+                    'مثال: كتاب التوحيد، الآجرومية، القواعد الأربع...',
+                actionLabel: 'إضافة أول درس',
+                onAction: () => _showAddLessonDialog(context),
+              );
+            }
+
+            return RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: () async => setState(() => _retryTick++),
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 8, bottom: 96),
+                itemCount: lessons.length,
+                itemBuilder: (context, index) => _LessonCard(
+                  lesson: lessons[index],
+                  pathway: widget.pathway,
+                  lessonsService: _lessonsService,
+                  studentsService: _studentsService,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showAddLessonDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _AddLessonDialog(
+        service: _lessonsService,
+        teacherId: widget.teacherId,
+        pathway: widget.pathway,
+        onCreated: (lesson) {
+          if (mounted) setState(() => _optimisticLesson = lesson);
         },
       ),
     );
   }
 }
 
-// ==================== بطاقة الإعداد الأولي ====================
+// ==================== بطاقة الدرس في القائمة ====================
 
-class _LessonSetupCard extends StatefulWidget {
+class _LessonCard extends StatelessWidget {
+  final Lesson lesson;
   final PathwayInfo pathway;
-  final String teacherId;
-  final LessonsService service;
-  final void Function(Lesson lesson) onLessonCreated;
+  final LessonsService lessonsService;
+  final StudentsService studentsService;
 
-  const _LessonSetupCard({
+  const _LessonCard({
+    required this.lesson,
     required this.pathway,
-    required this.teacherId,
-    required this.service,
-    required this.onLessonCreated,
+    required this.lessonsService,
+    required this.studentsService,
   });
 
   @override
-  State<_LessonSetupCard> createState() => _LessonSetupCardState();
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.lineSoft),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LessonDetailScreen(
+                  lesson: lesson,
+                  pathway: pathway,
+                  lessonsService: lessonsService,
+                  studentsService: studentsService,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: lesson.isNazm
+                        ? AppColors.goldSurface
+                        : AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(
+                    lesson.isNazm
+                        ? Icons.format_list_numbered_rounded
+                        : Icons.article_rounded,
+                    color: lesson.isNazm
+                        ? AppColors.gold
+                        : AppColors.primary,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(lesson.name,
+                          style: textTheme.titleSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${lesson.typeLabel} • ${lesson.totalCount} ${lesson.unitLabel} • المنجز ${lesson.completedCount}',
+                        style: textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${lesson.progressPercent}%',
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                // قائمة ثلاث نقاط بدل زر الحذف المباشر
+                CardActionsMenu(
+                  actions: [
+                    CardMenuAction(
+                      label: 'حذف الدرس',
+                      icon: Icons.delete_outline_rounded,
+                      destructive: true,
+                      onTap: () => _confirmDelete(context),
+                    ),
+                  ],
+                ),
+                Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 15,
+                    color: AppColors.inkMuted.withValues(alpha: 0.6)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'حذف الدرس',
+      message: 'سيتم حذف "${lesson.name}" مع جميع الدروس اليومية '
+          'وسجلات الحضور المرتبطة به.\nلا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف نهائي',
+      isDestructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final result = await lessonsService.deleteLesson(lesson);
+    if (!context.mounted) return;
+
+    if (result.success) {
+      showSuccessSnackBar(context, 'تم حذف الدرس "${lesson.name}"');
+    } else {
+      showErrorSnackBar(context, result.errorMessage!);
+    }
+  }
 }
 
-class _LessonSetupCardState extends State<_LessonSetupCard> {
+// ==================== حوار إضافة درس عام ====================
+
+class _AddLessonDialog extends StatefulWidget {
+  final LessonsService service;
+  final String teacherId;
+  final PathwayInfo pathway;
+  final ValueChanged<Lesson>? onCreated;
+
+  const _AddLessonDialog({
+    required this.service,
+    required this.teacherId,
+    required this.pathway,
+    this.onCreated,
+  });
+
+  @override
+  State<_AddLessonDialog> createState() => _AddLessonDialogState();
+}
+
+class _AddLessonDialogState extends State<_AddLessonDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _totalController = TextEditingController();
+
   String _type = 'nazm';
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -219,7 +351,10 @@ class _LessonSetupCardState extends State<_LessonSetupCard> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final result = await widget.service.setupLesson(
       teacherId: widget.teacherId,
@@ -230,150 +365,183 @@ class _LessonSetupCardState extends State<_LessonSetupCard> {
     );
 
     if (!mounted) return;
-    setState(() => _isLoading = false);
 
     if (result.success) {
-      // عرض متفائل فوري: نرفع الدرس المُنشأ للتاب الأب ليُظهر الوضع
-      // اليومي فورًا — لا ننتظر وصول snapshot البث (كان سبب الخلل).
-      if (result.lesson != null) {
-        widget.onLessonCreated(result.lesson!);
+      // عرض متفائل: نرفع الدرس المُنشأ للقائمة قبل إغلاق الحوار
+      final created = result.lesson;
+      Navigator.pop(context);
+      if (created != null) {
+        widget.onCreated?.call(created);
       }
-      showSuccessSnackBar(context, 'تم إعداد الدرس بنجاح، ابدأ بتسجيل الدروس اليومية');
+      showSuccessSnackBar(
+          context, 'تمت إضافة الدرس "${_nameController.text.trim()}"');
     } else {
-      showErrorSnackBar(context, result.errorMessage!);
+      setState(() {
+        _isLoading = false;
+        _errorMessage = result.errorMessage;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isNazm = _type == 'nazm';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 88,
-              height: 88,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                shape: BoxShape.circle,
-                border:
-                    Border.all(color: AppColors.primaryBorder, width: 1.5),
-              ),
-              child: const Icon(Icons.menu_book_rounded,
-                  size: 42, color: AppColors.primary),
-            ),
-            Text(
-              'إعداد درس المسار',
-              textAlign: TextAlign.center,
-              style: textTheme.titleMedium,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'عرّف الدرس الذي ستتابعه في "${widget.pathway.name}"\nثم ابدأ بتسجيل الحصص اليومية',
-              textAlign: TextAlign.center,
-              style: textTheme.bodySmall,
-            ),
-            const SizedBox(height: 24),
-
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(color: AppColors.lineSoft),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // اسم الدرس
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'اسم الدرس *',
-                      hintText: 'مثال: متن الآجرومية',
-                      prefixIcon: Icon(Icons.title_rounded),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'اسم الدرس مطلوب'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // نوع الدرس
-                  Text('نوع الدرس *', style: textTheme.titleSmall),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _TypeOption(
-                          label: 'نظم',
-                          subtitle: 'يُقاس بالأبيات',
-                          icon: Icons.format_list_numbered_rounded,
-                          selected: _type == 'nazm',
-                          onTap: () => setState(() => _type = 'nazm'),
-                        ),
+    return Dialog(
+      insetPadding:
+          const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _TypeOption(
-                          label: 'نثر',
-                          subtitle: 'يُقاس بالصفحات',
-                          icon: Icons.article_outlined,
-                          selected: _type == 'nathr',
-                          onTap: () => setState(() => _type = 'nathr'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // العدد الإجمالي
-                  TextFormField(
-                    controller: _totalController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText:
-                          'العدد الإجمالي (${_type == 'nazm' ? 'الأبيات' : 'الصفحات'}) *',
-                      prefixIcon:
-                          const Icon(Icons.format_list_numbered_rtl_rounded),
+                      child: const Icon(Icons.menu_book_rounded,
+                          color: Colors.white),
                     ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'العدد الإجمالي مطلوب';
-                      }
-                      final n = int.tryParse(v.trim());
-                      if (n == null || n <= 0) {
-                        return 'أدخل رقماً صحيحاً أكبر من صفر';
-                      }
-                      return null;
-                    },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('إضافة درس جديد',
+                              style: textTheme.titleMedium),
+                          Text(widget.pathway.name,
+                              style: textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+
+                if (_errorMessage != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorSurface,
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Text(_errorMessage!,
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: AppColors.error)),
                   ),
+                  const SizedBox(height: 14),
                 ],
-              ),
-            ),
-            const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submit,
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: Colors.white,
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الدرس *',
+                    hintText: 'مثال: كتاب التوحيد',
+                    prefixIcon: Icon(Icons.title_rounded),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'اسم الدرس مطلوب'
+                      : null,
+                ),
+                const SizedBox(height: 16),
+
+                // نوع الدرس
+                Text('نوع الدرس', style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _TypeOption(
+                        label: 'نظم',
+                        subtitle: 'يُحسب بالأبيات',
+                        icon: Icons.format_list_numbered_rounded,
+                        selected: _type == 'nazm',
+                        onTap: () => setState(() => _type = 'nazm'),
                       ),
-                    )
-                  : const Text('حفظ والبدء'),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _TypeOption(
+                        label: 'نثر',
+                        subtitle: 'يُحسب بالصفحات',
+                        icon: Icons.article_outlined,
+                        selected: _type == 'nathr',
+                        onTap: () => setState(() => _type = 'nathr'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _totalController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: isNazm
+                        ? 'عدد الأبيات الإجمالي *'
+                        : 'عدد الصفحات الإجمالي *',
+                    prefixIcon: const Icon(
+                        Icons.format_list_numbered_rtl_rounded),
+                  ),
+                  validator: (v) {
+                    final n = int.tryParse(v?.trim() ?? '');
+                    if (n == null || n <= 0) {
+                      return 'أدخل عدداً صحيحاً أكبر من صفر';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          side: const BorderSide(color: AppColors.line),
+                          foregroundColor: AppColors.inkSecondary,
+                        ),
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.pop(context),
+                        child: const Text('إلغاء'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submit,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('حفظ الدرس'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -437,160 +605,563 @@ class _TypeOption extends StatelessWidget {
     );
   }
 }
+// ==================== شاشة تفاصيل الدرس ====================
 
-// ==================== الوضع اليومي ====================
-
-class _DailyLessonMode extends StatefulWidget {
-  final PathwayInfo pathway;
+/// شاشة تفاصيل درس عام: البطاقة الكبرى + الرسم البياني للمنجز +
+/// زر إضافة درس يومي + زر رفع تقرير للإدارة + سجل الدروس اليومية.
+class LessonDetailScreen extends StatefulWidget {
   final Lesson lesson;
+  final PathwayInfo pathway;
   final LessonsService lessonsService;
   final StudentsService studentsService;
 
-  const _DailyLessonMode({
-    required this.pathway,
+  const LessonDetailScreen({
+    super.key,
     required this.lesson,
+    required this.pathway,
     required this.lessonsService,
     required this.studentsService,
   });
 
   @override
-  State<_DailyLessonMode> createState() => _DailyLessonModeState();
+  State<LessonDetailScreen> createState() => _LessonDetailScreenState();
 }
 
-class _DailyLessonModeState extends State<_DailyLessonMode> {
-  /// سجلات مُنشأة/مُعدّلة محليًا — تُعرض فورًا قبل وصول بث Firestore
-  final Map<String, LessonRecording> _overlay = {};
+class _LessonDetailScreenState extends State<LessonDetailScreen> {
+  /// التسجيلات المضافة/المعدّلة للتو — تُدمج فوق البث (العرض المتفائل)
+  final Map<String, LessonRecording> _optimistic = {};
 
-  void _onRecordingSaved(LessonRecording rec) {
-    if (!mounted) return;
-    setState(() => _overlay[rec.id] = rec);
-  }
+  bool _reportBusy = false;
 
-  /// دمج بث Firestore مع السجلات المحلية (المحلية تتفوق — أحدث دائمًا)
-  List<LessonRecording> _merge(List<LessonRecording> streamed) {
-    final merged = <String, LessonRecording>{
-      for (final r in streamed) r.id: r,
-    };
-    for (final r in _overlay.values) {
-      merged[r.id] = r;
-    }
-    final list = merged.values.toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
-    return list;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lesson = widget.lesson;
-    final lessonsService = widget.lessonsService;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ===== البطاقة الكبيرة الثابتة =====
-        _BigLessonCard(lesson: lesson),
-        const SizedBox(height: 16),
-
-        // ===== زر إضافة درس يومي =====
-        ElevatedButton.icon(
-          onPressed: () => _showAddDailyLessonDialog(context),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة درس يومي'),
-        ),
-        const SizedBox(height: 24),
-
-        // ===== سجل الدروس =====
-        SectionHeader(
-          title: 'سجل الدروس اليومية',
-          subtitle: 'الأحدث أولاً',
-        ),
-
-        StreamBuilder<List<LessonRecording>>(
-          stream: lessonsService.watchRecordings(
-            teacherId: lesson.teacherId,
-            lessonId: lesson.id,
-          ),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return _MiniError(
-                message: 'حدث خطأ أثناء تحميل السجل',
-                onRetry: () {},
-              );
-            }
-            if (!snapshot.hasData) {
-              // عرض متفائل: إن كان لدينا سجلات محلية نعرضها فورًا
-              if (_overlay.isNotEmpty) {
-                return Column(
-                  children: _merge(const [])
-                      .map((r) => _RecordingCard(
-                            recording: r,
-                            lesson: lesson,
-                            service: lessonsService,
-                            onEdit: () =>
-                                _showEditRecordingDialog(context, r),
-                          ))
-                      .toList(),
-                );
-              }
-              return const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            final recordings = _merge(snapshot.data!);
-            if (recordings.isEmpty) {
-              return _HistoryEmpty(
-                onAdd: () => _showAddDailyLessonDialog(context),
-              );
-            }
-
-            return Column(
-              children: recordings
-                  .map((r) => _RecordingCard(
-                        recording: r,
-                        lesson: lesson,
-                        service: lessonsService,
-                        onEdit: () => _showEditRecordingDialog(context, r),
-                      ))
-                  .toList(),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
-  void _showAddDailyLessonDialog(BuildContext context) {
+  void _openAddDialog() {
     showDialog(
       context: context,
-      builder: (_) => _DailyLessonDialog(
+      builder: (ctx) => _DailyLessonDialog(
         pathway: widget.pathway,
         lesson: widget.lesson,
         lessonsService: widget.lessonsService,
         studentsService: widget.studentsService,
-        onSaved: _onRecordingSaved,
+        onSaved: (rec) {
+          setState(() => _optimistic[rec.id] = rec);
+        },
       ),
     );
   }
 
-  void _showEditRecordingDialog(
-      BuildContext context, LessonRecording recording) {
+  void _openEditDialog(LessonRecording recording) {
     showDialog(
       context: context,
-      builder: (_) => _DailyLessonDialog(
+      builder: (ctx) => _DailyLessonDialog(
         pathway: widget.pathway,
         lesson: widget.lesson,
         lessonsService: widget.lessonsService,
         studentsService: widget.studentsService,
         editing: recording,
-        onSaved: _onRecordingSaved,
+        onSaved: (rec) {
+          setState(() => _optimistic[rec.id] = rec);
+        },
+      ),
+    );
+  }
+
+  // ==================== رفع تقرير الدروس للإدارة ====================
+
+  Future<void> _openReportFlow() async {
+    if (_reportBusy) return;
+    setState(() => _reportBusy = true);
+    try {
+      final dailyReports =
+          await ReportsService().buildLessonDailyReports(widget.lesson);
+      if (!mounted) return;
+
+      if (dailyReports.isEmpty) {
+        showSuccessSnackBar(
+            context, 'لا توجد دروس يومية مسجلة لبناء تقرير بعد.');
+        return;
+      }
+
+      final cards = ReportsService()
+          .buildPeriodCards(lesson: widget.lesson, dailyReports: dailyReports);
+
+      final period = await _pickPeriodSheet(cards.weeks, cards.months);
+      if (period == null || !mounted) return;
+
+      final teacherName =
+          context.read<AuthService>().currentUser?.name ?? 'المعلم';
+
+      await ReportPdfService.exportPeriodPdf(
+        period: period,
+        lesson: widget.lesson,
+        dailyReports: dailyReports,
+        teacherName: teacherName,
+        pathwayName: widget.pathway.name,
+      );
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'تعذّر إنشاء التقرير: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _reportBusy = false);
+    }
+  }
+
+  /// Bottom sheet لاختيار الفترة (أسبوع أو شهر) لتصدير PDF
+  Future<PeriodCard?> _pickPeriodSheet(
+      List<PeriodCard> weeks, List<PeriodCard> months) {
+    return showModalBottomSheet<PeriodCard>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final maxH = MediaQuery.of(ctx).size.height * 0.7;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.upload_file_rounded,
+                        color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    Text('رفع تقرير الدروس للإدارة',
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'اختر الفترة التي يتفق عليها مع الإدارة لتصديرها PDF:',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      if (weeks.isNotEmpty) ..._periodHeader(ctx, 'أسبوعيًا'),
+                      ...weeks.map((w) => _PeriodListTile(card: w)),
+                      if (months.isNotEmpty) ..._periodHeader(ctx, 'شهريًا'),
+                      ...months.map((m) => _PeriodListTile(card: m)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _periodHeader(BuildContext ctx, String label) {
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 8),
+        child: Text(
+          label,
+          style: Theme.of(ctx)
+              .textTheme
+              .labelMedium
+              ?.copyWith(fontWeight: FontWeight.bold, color: AppColors.inkMuted),
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.surfaceAlt,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceAlt,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.lesson.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              widget.pathway.name,
+              style: TextStyle(
+                  fontSize: 11.5, color: AppColors.inkMuted),
+            ),
+          ],
+        ),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<List<LessonRecording>>(
+        stream: widget.lessonsService.watchRecordings(
+          teacherId: widget.lesson.teacherId,
+          lessonId: widget.lesson.id,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return ErrorState(
+              message: 'تعذّر تحميل سجل الدروس اليومية.\n${snapshot.error}',
+              onRetry: () => setState(() {}),
+            );
+          }
+
+          final recordings = <LessonRecording>[];
+          if (snapshot.hasData) {
+            final byId = {
+              for (final r in snapshot.data!) r.id: r,
+            };
+            // العرض المتفائل: المحلية تتفوق على القادمة من البث
+            _optimistic.forEach((id, rec) {
+              byId[id] = rec;
+            });
+            recordings.addAll(byId.values);
+            recordings.sort((a, b) => b.date.compareTo(a.date));
+          }
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              _BigLessonCard(lesson: widget.lesson),
+              const SizedBox(height: 16),
+
+              // الرسم البياني للمنجز (تراكمي)
+              _ProgressChartCard(
+                  lesson: widget.lesson, recordings: recordings),
+              const SizedBox(height: 16),
+
+              // زرا الإضافة ورفع التقرير
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton.icon(
+                      onPressed: _openAddDialog,
+                      icon: const Icon(Icons.add_task_rounded),
+                      label: const Text('إضافة درس يومي',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.md)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      onPressed: _reportBusy ? null : _openReportFlow,
+                      icon: _reportBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_file_rounded),
+                      label: const Text('رفع تقرير',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.md)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              SectionHeader(
+                title: 'سجل الدروس اليومية',
+                subtitle:
+                    '${recordings.length} درسًا مسجلًا • المنجز ${widget.lesson.completedCount} ${widget.lesson.unitLabel}',
+              ),
+              const SizedBox(height: 10),
+
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  recordings.isEmpty)
+                const ListSkeleton(itemCount: 3)
+              else if (recordings.isEmpty)
+                _HistoryEmpty(onAdd: _openAddDialog)
+              else
+                ...recordings.map(
+                  (rec) => _RecordingCard(
+                    recording: rec,
+                    lesson: widget.lesson,
+                    service: widget.lessonsService,
+                    onEdit: () => _openEditDialog(rec),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-// ==================== البطاقة الكبيرة ====================
+// ==================== بطاقة الفترة في قائمة اختيار التقرير ====================
+
+class _PeriodListTile extends StatelessWidget {
+  final PeriodCard card;
+
+  const _PeriodListTile({required this.card});
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('d/M', 'ar');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+            color: card.isCurrent ? AppColors.primary : AppColors.lineSoft,
+            width: card.isCurrent ? 1.5 : 1),
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        title: Text(card.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Text(
+          '${df.format(card.start)} – ${df.format(card.end)} • '
+          '${card.report.unitsAccomplished} ${'منجز'}',
+          style: const TextStyle(fontSize: 11.5),
+        ),
+        trailing: card.isCurrent
+            ? Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text('الحالي',
+                    style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary)),
+              )
+            : const Icon(Icons.picture_as_pdf_rounded,
+                color: AppColors.primary),
+        onTap: () => Navigator.of(context).pop(card),
+      ),
+    );
+  }
+}
+
+// ==================== الرسم البياني للمنجز (fl_chart) ====================
+
+/// بطاقة الرسم البياني التراكمي: يوضح كم أُنجز من الدرس عبر الدروس اليومية.
+class _ProgressChartCard extends StatelessWidget {
+  final Lesson lesson;
+  final List<LessonRecording> recordings;
+
+  const _ProgressChartCard({required this.lesson, required this.recordings});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final spots = <FlSpot>[];
+
+    if (recordings.isNotEmpty) {
+      // الأقدم أولًا لبناء التراكم
+      final sorted = [...recordings]
+        ..sort((a, b) => a.date.compareTo(b.date));
+
+      double cumulative = 0;
+      for (int i = 0; i < sorted.length; i++) {
+        cumulative = sorted[i].to.toDouble();
+        spots.add(FlSpot((i + 1).toDouble(), cumulative));
+      }
+    }
+
+    final maxY = lesson.totalCount > 0
+        ? lesson.totalCount.toDouble()
+        : (spots.isNotEmpty ? spots.last.y + 1 : 10.0);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.lineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text('المنجز عبر الدروس اليومية',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${lesson.progressPercent}%',
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'الوصول إلى ${lesson.completedCount} من ${lesson.totalCount} ${lesson.unitLabel}',
+            style: textTheme.bodySmall?.copyWith(color: AppColors.inkMuted),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 190,
+            child: spots.isEmpty
+                ? Center(
+                    child: Text(
+                      'سيظهر الرسم البياني بعد تسجيل أول درس يومي',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: AppColors.inkMuted),
+                    ),
+                  )
+                : LineChart(
+                    LineChartData(
+                      minX: 0,
+                      maxX: (spots.length).toDouble(),
+                      minY: 0,
+                      maxY: maxY * 1.05,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval:
+                            maxY > 4 ? maxY / 4 : 1.0,
+                        getDrawingHorizontalLine: (v) => FlLine(
+                          color: AppColors.lineSoft,
+                          strokeWidth: 1,
+                          dashArray: const [4, 4],
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(),
+                        rightTitles: const AxisTitles(),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 34,
+                            interval: maxY > 4 ? maxY / 4 : 1.0,
+                            getTitlesWidget: (v, meta) => SideTitleWidget(
+                              axisSide: meta.axisSide,
+                              space: 6,
+                              child: Text(
+                                v.toInt().toString(),
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.inkMuted),
+                              ),
+                            ),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 26,
+                            interval: 1,
+                            getTitlesWidget: (v, meta) {
+                              final idx = v.toInt() - 1;
+                              if (idx < 0 ||
+                                  idx >= spots.length ||
+                                  v == 0) {
+                                return const SizedBox.shrink();
+                              }
+                              final sorted = [...recordings]
+                                ..sort((a, b) => a.date.compareTo(b.date));
+                              final d = DateFormat('d/M', 'ar')
+                                  .format(sorted[idx].date);
+                              return SideTitleWidget(
+                                axisSide: meta.axisSide,
+                                space: 6,
+                                child: Text(
+                                  d,
+                                  style: const TextStyle(
+                                      fontSize: 9.5,
+                                      color: AppColors.inkMuted),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: [
+                            FlSpot(0, 0),
+                            ...spots,
+                          ],
+                          isCurved: true,
+                          preventCurveOverShooting: true,
+                          barWidth: 3,
+                          color: AppColors.primary,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, bar, index) =>
+                                FlDotCirclePainter(
+                              radius: 4,
+                              color: AppColors.gold,
+                              strokeWidth: 2,
+                              strokeColor: Colors.white,
+                            ),
+                          ),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color:
+                                AppColors.primary.withValues(alpha: 0.10),
+                          ),
+                        ),
+                      ],
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipItems: (spots) => spots
+                              .map((s) => LineTooltipItem(
+                                    '${s.y.toInt()} ${lesson.unitLabel}',
+                                    const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _BigLessonCard extends StatelessWidget {
   final Lesson lesson;
@@ -1674,178 +2245,6 @@ class _HistoryEmpty extends StatelessWidget {
             'اضغط "إضافة درس يومي" للبدء',
             style: Theme.of(context).textTheme.bodySmall,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// عرض تحميل دائري مع زر تشخيص مباشر يجلب البيانات يدويًا من Firestore
-/// ويعرض النتيجة الفعلية على الشاشة — لكشف السبب الحقيقي لأي تعليق
-class _LessonLoadingView extends StatefulWidget {
-  final String teacherId;
-  final String pathwayId;
-  final String? autoDiagnosis;
-
-  const _LessonLoadingView({
-    required this.teacherId,
-    required this.pathwayId,
-    this.autoDiagnosis,
-  });
-
-  @override
-  State<_LessonLoadingView> createState() => _LessonLoadingViewState();
-}
-
-class _LessonLoadingViewState extends State<_LessonLoadingView> {
-  bool _showHint = false;
-  bool _diagnosing = false;
-  String? _diagnosis;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _showHint = true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  /// جلب يدوي مباشر (get) بدل البث — يكشف أي خطأ فورًا
-  Future<void> _runDiagnosis() async {
-    setState(() {
-      _diagnosing = true;
-      _diagnosis = null;
-    });
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('lessons')
-          .where('teacherId', isEqualTo: widget.teacherId)
-          .get()
-          .timeout(const Duration(seconds: 15));
-
-      final matching =
-          snap.docs.where((d) => d.data()['pathwayId'] == widget.pathwayId);
-
-      setState(() {
-        _diagnosing = false;
-        if (snap.docs.isEmpty) {
-          _diagnosis = '✅ الاتصال يعمل، لكن لا توجد دروس لهذا الحساب إطلاقًا.\n'
-              'معرّف المعلم: ${widget.teacherId}\n'
-              'عدد الدروس الكلي للحساب: 0';
-        } else if (matching.isEmpty) {
-          _diagnosis = '✅ الاتصال يعمل.\n'
-              'دروس الحساب: ${snap.docs.length} — لكن لا يطابق أحدها هذا المسار.\n'
-              'معرّف المسار المطلوب: ${widget.pathwayId}\n'
-              'المسارات الموجودة: ${snap.docs.map((d) => d.data()['pathwayId']).join('، ')}';
-        } else {
-          _diagnosis = '✅ البيانات موجودة (${matching.length} درس مطابق)!\n'
-              'المشكلة في البث فقط — أعد فتح الصفحة وستعمل.';
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _diagnosing = false;
-        final msg = e.toString();
-        if (msg.contains('permission')) {
-          _diagnosis = '❌ رفض الوصول (PERMISSION_DENIED).\n'
-              'قواعد Firestore تمنع القراءة — الحل: لوحة Firebase →\n'
-              'Firestore → Rules → اجعلها تسمح للمستخدمين المسجلين.\n\n'
-              'التفاصيل: $msg';
-        } else if (msg.contains('index')) {
-          _diagnosis = '❌ الفهرس المركب مفقود.\nالتفاصيل: $msg';
-        } else {
-          _diagnosis = '❌ خطأ في الجلب:\n$msg';
-        }
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            if (_showHint) ...[
-              const SizedBox(height: 18),
-              const Text(
-                'يستغرق التحميل وقتاً أطول من المعتاد...',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 12.5, color: AppColors.inkMuted, height: 1.6),
-              ),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: _diagnosing ? null : _runDiagnosis,
-                icon: _diagnosing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.troubleshoot_rounded, size: 18),
-                label: Text(_diagnosing ? 'جارٍ الفحص...' : 'فحص المشكلة'),
-              ),
-            ],
-            // نتيجة التشخيص التلقائي أو اليدوي — تكشف السبب الحقيقي فورًا
-            Builder(builder: (context) {
-              final text = _diagnosis ?? widget.autoDiagnosis;
-              if (text == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.25)),
-                  ),
-                  child: SelectableText(
-                    text,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12, height: 1.7),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniError extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _MiniError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.errorSurface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.error),
-          const SizedBox(width: 10),
-          Expanded(child: Text(message)),
         ],
       ),
     );
