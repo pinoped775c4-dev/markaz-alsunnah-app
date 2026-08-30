@@ -32,24 +32,14 @@ class _LessonsTabState extends State<LessonsTab> {
 
   int _retryTick = 0;
 
-  /// بث الدرس مع مهلة زمنية — إن لم ترد البيانات خلال 12 ثانية
-  /// يُعرض خطأ واضح مع زر إعادة المحاولة بدل الدوران اللانهائي
+  /// بث الدرس مباشرة بلا مهلة زمنية — الاستعلام بسيط (شرط واحد)
+  /// فيستجيب فورًا من Firestore أو من الكاش المحلي عند انقطاع النت.
+  /// أي خطأ حقيقي (مثل رفق الصلاحيات) يظهر فورًا عبر snapshot.hasError.
   Stream<Lesson?> _lessonStream() {
-    return _lessonsService
-        .watchPathwayLesson(
-          teacherId: widget.teacherId,
-          pathwayId: widget.pathway.id,
-        )
-        .timeout(
-          const Duration(seconds: 12),
-          onTimeout: (sink) {
-            debugPrint(
-                'LessonsTab: timeout waiting for lesson stream '
-                '(teacher=${widget.teacherId}, '
-                'pathway=${widget.pathway.id})');
-            sink.addError(TimeoutException('stream_timeout'));
-          },
-        );
+    return _lessonsService.watchPathwayLesson(
+      teacherId: widget.teacherId,
+      pathwayId: widget.pathway.id,
+    );
   }
 
   @override

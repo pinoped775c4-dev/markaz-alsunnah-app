@@ -401,6 +401,18 @@ class _TeacherCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_forever_rounded,
+                          size: 20, color: AppColors.error),
+                      SizedBox(width: 12),
+                      Text('حذف الحساب نهائيًا',
+                          style: TextStyle(color: AppColors.error)),
+                    ],
+                  ),
+                ),
               ],
             ),
           ],
@@ -454,6 +466,50 @@ class _TeacherCard extends StatelessWidget {
       if (result.success) {
         showSuccessSnackBar(
             context, 'تم إرسال رابط إعادة التعيين إلى ${teacher.email}');
+      } else {
+        showErrorSnackBar(context, result.errorMessage!);
+      }
+    } else if (action == 'delete') {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: 'حذف حساب المعلم نهائيًا',
+        message:
+            'سيتم حذف حساب "${teacher.name}" وجميع بياناته نهائيًا:\n'
+            'الطلاب، الدروس، التسجيلات اليومية، سجلات الحضور، المتون والقرآن.\n\n'
+            '⚠️ هذا الإجراء لا يمكن التراجع عنه!',
+        confirmLabel: 'حذف نهائي',
+        isDestructive: true,
+      );
+      if (!confirmed || !context.mounted) return;
+
+      // مؤشر تحميل أثناء الحذف (قد يستغرق ثوانيَ لكثرة البيانات)
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('جارٍ حذف الحساب وجميع بياناته...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final result = await service.deleteTeacherAccount(teacher.uid);
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // إغلاق مؤشر التحميل
+
+      if (result.success) {
+        showSuccessSnackBar(
+            context, 'تم حذف حساب ${teacher.name} وجميع بياناته');
       } else {
         showErrorSnackBar(context, result.errorMessage!);
       }

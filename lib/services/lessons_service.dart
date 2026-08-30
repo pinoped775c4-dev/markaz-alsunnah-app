@@ -24,6 +24,11 @@ class LessonsService {
   // ================= إعداد الدرس الأولي =================
 
   /// بث الدرس الوحيد للمسار (إن وُجد)
+  ///
+  /// ملاحظة مهمة: نستخدم شرطًا واحدًا فقط (teacherId) ثم نرشّح محليًا،
+  /// لأن الجمع بين شرطي where على (teacherId + pathwayId) يتطلب فهرسًا
+  /// مركبًا في Firestore — وغيابه كان يسبب تعليق الـ stream بلا رد.
+  /// الاستعلام البسيط يعمل فورًا ويستفيد من الكاش المحلي عند انقطاع النت.
   Stream<Lesson?> watchPathwayLesson({
     required String teacherId,
     required String pathwayId,
@@ -31,12 +36,19 @@ class LessonsService {
     return _firestore
         .collection('lessons')
         .where('teacherId', isEqualTo: teacherId)
-        .where('pathwayId', isEqualTo: pathwayId)
-        .limit(1)
         .snapshots()
         .map((snapshot) {
-      if (snapshot.docs.isEmpty) return null;
-      return Lesson.fromFirestore(snapshot.docs.first);
+      for (final doc in snapshot.docs) {
+        if (doc.data()['pathwayId'] == pathwayId) {
+          try {
+            return Lesson.fromFirestore(doc);
+          } catch (e) {
+            debugPrint('LessonsService: تعذّر تحويل بيانات الدرس: $e');
+            return null;
+          }
+        }
+      }
+      return null;
     });
   }
 

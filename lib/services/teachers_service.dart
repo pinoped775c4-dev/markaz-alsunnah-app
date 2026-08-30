@@ -124,6 +124,81 @@ class TeachersService {
     }
   }
 
+  // ================= حذف حساب المعلم نهائيًا =================
+
+  /// حذف مستند المعلم من Firestore مع تنظيف كل بياناته المرتبطة:
+  /// طلابه، دروسه، تسجيلات الدروس اليومية، سجلات الحضور، المتون
+  /// وتسجيلاتها، وتسجيلات القرآن — كل ذلك عبر معاملات مجمّعة (Batches).
+  ///
+  /// ملاحظة: حذف حساب Firebase Auth نفسه يتطلب صلاحيات خادم (Admin SDK)
+  /// غير متاحة من التطبيق — لكن حذف مستند users يمنع المعلم من الدخول
+  /// نهائيًا لأن التطبيق يتحقق من وجود الملف الشخصي عند تسجيل الدخول.
+  Future<TeacherOpResult> deleteTeacherAccount(String uid) async {
+    try {
+      final teacherDoc = _firestore.collection('users').doc(uid);
+
+      // المرحلة 1: تنظيف البيانات المرتبطة (دفعات منفصلة لكل مجموعة)
+      // مستندات الدروس نحتفظ بمراجعها لنستخدمها في حذف الحضور
+      final lessonsSnap = await _firestore
+          .collection('lessons')
+          .where('teacherId', isEqualTo: uid)
+          .get();
+      final lessonIds = lessonsSnap.docs.map((d) => d.id).toList();
+
+      // حذف سجلات الحضور المرتبطة بدروس المعلم (مرجعها lessonId)
+      // نعالج 10 دروس في كل استعلام (حد whereIn في Firestore)
+      for (var i = 0; i < lessonIds.length; i += 10) {
+        final chunk = lessonIds.sublist(
+            i, i + 10 > lessonIds.length ? lessonIds.length : i + 10);
+        final attendanceSnap = await _firestore
+            .collection('attendance')
+            .where('lessonId', whereIn: chunk)
+            .get();
+        if (attendanceSnap.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (final doc in attendanceSnap.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+      }
+
+      // باقي المجموعات تُربط مباشرة بـ teacherId
+      for (final collection in const [
+        'students',
+        'lessons',
+        'lesson_recordings',
+        'mutun',
+        'mutun_recordings',
+        'quran_recordings',
+      ]) {
+        final snapshot = await _firestore
+            .collection(collection)
+            .where('teacherId', isEqualTo: uid)
+            .get();
+        // Firestore Batch يقبل 500 عملية كحد أقصى — نقسّم عند الحاجة
+        for (var i = 0; i < snapshot.docs.length; i += 400) {
+          final batch = _firestore.batch();
+          final chunk = snapshot.docs.sublist(
+              i, i + 400 > snapshot.docs.length ? snapshot.docs.length : i + 400);
+          for (final doc in chunk) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+      }
+
+      // المرحلة 2: حذف ملف المعلم نفسه
+      await teacherDoc.delete();
+
+      return const TeacherOpResult.ok();
+    } catch (e) {
+      debugPrint('TeachersService.deleteTeacherAccount error: $e');
+      return const TeacherOpResult.fail(
+          'فشل حذف حساب المعلم، تحقق من الإنترنت وحاول مرة أخرى');
+    }
+  }
+
   // ================= إعادة تعيين كلمة المرور =================
 
   Future<TeacherOpResult> sendPasswordReset(String email) async {

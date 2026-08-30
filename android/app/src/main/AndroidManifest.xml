@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="Islamic Center Manager"
+        android:label="مركز السنة للعلوم الشرعية وتأهيل الدعاة"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
