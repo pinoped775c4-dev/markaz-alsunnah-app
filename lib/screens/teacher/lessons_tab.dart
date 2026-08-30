@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -32,6 +33,55 @@ class _LessonsTabState extends State<LessonsTab> {
 
   int _retryTick = 0;
 
+  /// نتيجة التشخيص اليدوي (جلب get مباشر) — تظهر تحت مؤشر التحميل
+  /// لنعرف فورًا هل البيانات موجودة أم لا، وما الخطأ الحقيقي إن وُجد
+  String? _autoDiagnosis;
+
+  @override
+  void initState() {
+    super.initState();
+    // جلب يدوي مباشر بالتوازي مع البث: إن نجح فالبيانات موجودة والبث
+    // سيلحق بها، وإن فشل نكشف الخطأ الحقيقي فورًا بدل الانتظار الأعمى
+    Future.delayed(const Duration(seconds: 5), _autoCheck);
+  }
+
+  Future<void> _autoCheck() async {
+    if (!mounted || widget.teacherId.isEmpty) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('lessons')
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .get()
+          .timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      final matching =
+          snap.docs.where((d) => d.data()['pathwayId'] == widget.pathway.id);
+      setState(() {
+        if (snap.docs.isEmpty) {
+          _autoDiagnosis = 'الاتصال سليم — لا توجد دروس مسجلة لهذا الحساب بعد.\n'
+              'أنشئ درسك الأول من بطاقة الإعداد أدناه.';
+        } else if (matching.isEmpty) {
+          _autoDiagnosis = 'الاتصال سليم — لديك ${snap.docs.length} درسًا '
+              'لكن لا يطابق أحدها هذا المسار (${widget.pathway.id}).';
+        } else {
+          _autoDiagnosis = 'البيانات موجودة (${matching.length} درس) '
+              '— انتظر لحظة تحميل البث.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      setState(() {
+        if (msg.contains('permission')) {
+          _autoDiagnosis = '❌ رفض الوصول من قاعدة البيانات (PERMISSION_DENIED).\n'
+              'قواعد Firestore تمنع القراءة — يجب تعديلها من لوحة Firebase.';
+        } else {
+          _autoDiagnosis = 'تعذّر الفحص: $msg';
+        }
+      });
+    }
+  }
+
   /// بث الدرس مباشرة بلا مهلة زمنية — الاستعلام بسيط (شرط واحد)
   /// فيستجيب فورًا من Firestore أو من الكاش المحلي عند انقطاع النت.
   /// أي خطأ حقيقي (مثل رفق الصلاحيات) يظهر فورًا عبر snapshot.hasError.
@@ -44,6 +94,24 @@ class _LessonsTabState extends State<LessonsTab> {
 
   @override
   Widget build(BuildContext context) {
+    // حماية من الحالة التي تُفتح فيها الصفحة قبل اكتمال جلسة المعلم —
+    // teacherId الفارغ كان يسبب استعلامًا معلقًا بلا نتيجة ولا خطأ
+    if (widget.teacherId.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('جارٍ تهيئة حساب المعلم...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     // الاعتماد على _retryTick يجبر إعادة إنشاء الـ Stream عند إعادة المحاولة
     return KeyedSubtree(
       key: ValueKey(_retryTick),
@@ -67,7 +135,11 @@ class _LessonsTabState extends State<LessonsTab> {
           }
 
           if (!snapshot.hasData) {
-            return const _LessonLoadingView();
+            return _LessonLoadingView(
+              teacherId: widget.teacherId,
+              pathwayId: widget.pathway.id,
+              autoDiagnosis: _autoDiagnosis,
+            );
           }
 
           final lesson = snapshot.data;
@@ -1494,9 +1566,18 @@ class _HistoryEmpty extends StatelessWidget {
   }
 }
 
-/// عرض تحميل دائري مع رسالة تتبدل بعد 8 ثوانٍ (تشخيص للمستخدم)
+/// عرض تحميل دائري مع زر تشخيص مباشر يجلب البيانات يدويًا من Firestore
+/// ويعرض النتيجة الفعلية على الشاشة — لكشف السبب الحقيقي لأي تعليق
 class _LessonLoadingView extends StatefulWidget {
-  const _LessonLoadingView();
+  final String teacherId;
+  final String pathwayId;
+  final String? autoDiagnosis;
+
+  const _LessonLoadingView({
+    required this.teacherId,
+    required this.pathwayId,
+    this.autoDiagnosis,
+  });
 
   @override
   State<_LessonLoadingView> createState() => _LessonLoadingViewState();
@@ -1504,6 +1585,8 @@ class _LessonLoadingView extends StatefulWidget {
 
 class _LessonLoadingViewState extends State<_LessonLoadingView> {
   bool _showHint = false;
+  bool _diagnosing = false;
+  String? _diagnosis;
   Timer? _timer;
 
   @override
@@ -1520,11 +1603,61 @@ class _LessonLoadingViewState extends State<_LessonLoadingView> {
     super.dispose();
   }
 
+  /// جلب يدوي مباشر (get) بدل البث — يكشف أي خطأ فورًا
+  Future<void> _runDiagnosis() async {
+    setState(() {
+      _diagnosing = true;
+      _diagnosis = null;
+    });
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('lessons')
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .get()
+          .timeout(const Duration(seconds: 15));
+
+      final matching =
+          snap.docs.where((d) => d.data()['pathwayId'] == widget.pathwayId);
+
+      setState(() {
+        _diagnosing = false;
+        if (snap.docs.isEmpty) {
+          _diagnosis = '✅ الاتصال يعمل، لكن لا توجد دروس لهذا الحساب إطلاقًا.\n'
+              'معرّف المعلم: ${widget.teacherId}\n'
+              'عدد الدروس الكلي للحساب: 0';
+        } else if (matching.isEmpty) {
+          _diagnosis = '✅ الاتصال يعمل.\n'
+              'دروس الحساب: ${snap.docs.length} — لكن لا يطابق أحدها هذا المسار.\n'
+              'معرّف المسار المطلوب: ${widget.pathwayId}\n'
+              'المسارات الموجودة: ${snap.docs.map((d) => d.data()['pathwayId']).join('، ')}';
+        } else {
+          _diagnosis = '✅ البيانات موجودة (${matching.length} درس مطابق)!\n'
+              'المشكلة في البث فقط — أعد فتح الصفحة وستعمل.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _diagnosing = false;
+        final msg = e.toString();
+        if (msg.contains('permission')) {
+          _diagnosis = '❌ رفض الوصول (PERMISSION_DENIED).\n'
+              'قواعد Firestore تمنع القراءة — الحل: لوحة Firebase →\n'
+              'Firestore → Rules → اجعلها تسمح للمستخدمين المسجلين.\n\n'
+              'التفاصيل: $msg';
+        } else if (msg.contains('index')) {
+          _diagnosis = '❌ الفهرس المركب مفقود.\nالتفاصيل: $msg';
+        } else {
+          _diagnosis = '❌ خطأ في الجلب:\n$msg';
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1532,14 +1665,46 @@ class _LessonLoadingViewState extends State<_LessonLoadingView> {
             if (_showHint) ...[
               const SizedBox(height: 18),
               const Text(
-                'يستغرق التحميل وقتاً أطول من المعتاد...\n'
-                'تحقق من الاتصال بالإنترنت، وإن استمر الوضع\n'
-                'تأكد من قواعد أمان Firestore في لوحة Firebase.',
+                'يستغرق التحميل وقتاً أطول من المعتاد...',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 12.5, color: AppColors.inkMuted, height: 1.6),
               ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: _diagnosing ? null : _runDiagnosis,
+                icon: _diagnosing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.troubleshoot_rounded, size: 18),
+                label: Text(_diagnosing ? 'جارٍ الفحص...' : 'فحص المشكلة'),
+              ),
             ],
+            // نتيجة التشخيص التلقائي أو اليدوي — تكشف السبب الحقيقي فورًا
+            Builder(builder: (context) {
+              final text = _diagnosis ?? widget.autoDiagnosis;
+              if (text == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  child: SelectableText(
+                    text,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 12, height: 1.7),
+                  ),
+                ),
+              );
+            }),
           ],
         ),
       ),
