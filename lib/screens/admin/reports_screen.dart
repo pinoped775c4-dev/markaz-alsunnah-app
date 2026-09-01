@@ -455,10 +455,62 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
 
   Future<List<LessonDayReport>>? _future;
 
+  // البحث بالتاريخ — null يعني عرض كل الدروس اليومية
+  DateTime? _searchDate;
+
   @override
   void initState() {
     super.initState();
     _future = widget.reportsService.buildLessonDailyReports(widget.lesson);
+  }
+
+  /// نافذة اختيار تاريخ البحث عن الدروس اليومية
+  Future<void> _pickSearchDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _searchDate ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      helpText: 'ابحث عن دروس يوم معيّن',
+      cancelText: 'إلغاء',
+      confirmText: 'بحث',
+      locale: const Locale('ar'),
+    );
+    if (picked == null) return;
+    setState(() => _searchDate = picked);
+  }
+
+  /// قاعدة ظهور التقارير الأسبوعية/الشهرية لحساب الإدارة:
+  /// - الأسبوعي: يظهر يوم الجمعة بعد الساعة 6 صباحاً أو بعد نهاية الأسبوع
+  /// - الشهري: يظهر فقط بعد نهاية الشهر
+  /// - زر PDF للأسبوع/الشهر الحالي الجاري لا يظهر أبداً قبل انتهاء الفترة
+  static ({List<PeriodCard> weeks, List<PeriodCard> months}) _adminPeriods(
+    ({List<PeriodCard> weeks, List<PeriodCard> months}) periods,
+  ) {
+    final now = DateTime.now();
+
+    // الأسبوعي: المنتهي دائماً يظهر؛ الجاري يظهر فقط يوم الجمعة 6 صباحاً أو بعده
+    final visibleWeeks = periods.weeks.where((w) {
+      if (!w.isCurrent) return true; // منتهٍ — يظهر
+      return now.weekday == 5 && now.hour >= 6; // جمعة 6 صباحاً أو بعدها
+    }).toList();
+
+    // الشهري: المنتهي فقط (بطاقة الشهر الجاري isCurrent لا تظهر أبداً)
+    final visibleMonths = periods.months.where((m) => !m.isCurrent).toList();
+
+    return (weeks: visibleWeeks, months: visibleMonths);
+  }
+
+  /// فلترة الدروس اليومية بحسب تاريخ البحث المختار
+  static List<LessonDayReport> _filterByDate(
+    List<LessonDayReport> reports,
+    DateTime? date,
+  ) {
+    if (date == null) return reports;
+    return reports
+        .where((r) => DateUtils.isSameDay(r.date, date))
+        .toList();
   }
 
   @override
@@ -468,14 +520,15 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
   }
 
   /// الانتقال تلقائياً إلى بطاقة اليوم الحالي بعد البناء
-  void _scrollToToday(List<LessonDayReport> reports) {
+  /// (يُستدعى فقط في وضع العرض الكامل — الأحدث في الأعلى)
+  void _scrollToToday(List<LessonDayReport> reportsDesc) {
     final now = DateTime.now();
     LessonDayReport? today;
-    for (final r in reports) {
+    for (final r in reportsDesc) {
       if (DateUtils.isSameDay(r.date, now)) today = r;
     }
-    // إن لم يوجد اليوم الحالي ننتقل لأحدث بطاقة
-    final target = today ?? (reports.isEmpty ? null : reports.last);
+    // الأحدث أولًا (تصاعدي معكوس) — اليوم الحالي في القمة، وإلا أول بطاقة
+    final target = today ?? (reportsDesc.isEmpty ? null : reportsDesc.first);
     if (target == null) return;
 
     final key = _dayKeys[target.recording.id];
@@ -509,11 +562,35 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
             ),
           ],
         ),
+        actions: [
+          // زر البحث بالتاريخ
+          IconButton(
+            tooltip: _searchDate == null
+                ? 'بحث بالتاريخ'
+                : 'إلغاء البحث بالتاريخ',
+            onPressed: () {
+              if (_searchDate != null) {
+                setState(() => _searchDate = null);
+              } else {
+                _pickSearchDate();
+              }
+            },
+            icon: _searchDate == null
+                ? const Icon(Icons.calendar_month_outlined)
+                : const Icon(Icons.filter_alt_off_rounded),
+          ),
+          IconButton(
+            tooltip: 'بحث بالتاريخ',
+            onPressed: _pickSearchDate,
+            icon: const Icon(Icons.search_rounded),
+          ),
+        ],
       ),
       body: WatermarkedBackground(
         child: FutureBuilder<List<LessonDayReport>>(
           future: _future,
           builder: (context, snapshot) {
+            final textTheme = Theme.of(context).textTheme;
             if (snapshot.hasError) {
               return ErrorState(
                 message: 'حدث خطأ أثناء تحميل التقرير',
@@ -527,8 +604,9 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final reports = snapshot.data!;
-            if (reports.isEmpty) {
+            // ترتيب تنازلي: الأحدث في الأعلى والأقدم في الأسفل
+            final reportsDesc = snapshot.data!.reversed.toList();
+            if (reportsDesc.isEmpty) {
               return const EmptyState(
                 icon: Icons.event_busy_rounded,
                 title: 'لا توجد تسجيلات يومية',
@@ -536,37 +614,89 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
               );
             }
 
+            // فلترة الدروس اليومية بحسب تاريخ البحث (إن وُجد)
+            final visibleReports = _filterByDate(reportsDesc, _searchDate);
+
             // جهّز مفاتيح البطاقات
             _dayKeys.clear();
-            for (final r in reports) {
+            for (final r in visibleReports) {
               _dayKeys[r.recording.id] = GlobalKey();
             }
 
-            // البطاقات الأسبوعية والشهرية
-            final periods = widget.reportsService.buildPeriodCards(
-              lesson: widget.lesson,
-              dailyReports: reports,
+            // البطاقات الأسبوعية والشهرية — بقاعدة ظهور الإدارة:
+            // لا تظهر إلا بعد انتهاء الفترة (جمعة 6ص للأسبوعي، نهاية الشهر للشهري)
+            final periods = _adminPeriods(
+              widget.reportsService.buildPeriodCards(
+                lesson: widget.lesson,
+                dailyReports: snapshot.data!,
+              ),
             );
 
-            _scrollToToday(reports);
+            if (_searchDate == null) _scrollToToday(visibleReports);
 
             return ListView(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               children: [
+                // ===== شريط البحث بالتاريخ =====
+                if (_searchDate != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.lineSoft),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.filter_alt_rounded,
+                            size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'نتائج البحث: ${DateFormat('d MMMM y', 'ar').format(_searchDate!)}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _searchDate = null),
+                          child: const Text('عرض الكل'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // ===== التقارير اليومية =====
                 SectionHeader(
-                  title: 'التقرير اليومي',
-                  subtitle: 'كل يوم في بطاقة — اضغط للتفاصيل',
+                  title: _searchDate == null
+                      ? 'التقرير اليومي'
+                      : 'نتائج البحث — ${visibleReports.length} درس',
+                  subtitle: _searchDate == null
+                      ? 'الأحدث في الأعلى — اضغط للتفاصيل'
+                      : 'دروس يوم ${DateFormat('d/M/y', 'ar').format(_searchDate!)}',
                 ),
-                for (final report in reports)
-                  _DailyReportCard(
-                    key: _dayKeys[report.recording.id],
-                    report: report,
-                    lesson: widget.lesson,
-                    isToday: DateUtils.isSameDay(
-                        report.date, DateTime.now()),
-                  ),
+                if (visibleReports.isEmpty)
+                  const EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: 'لا توجد نتائج',
+                    message: 'لا يوجد درس يومي في هذا التاريخ',
+                  )
+                else
+                  for (final report in visibleReports)
+                    _DailyReportCard(
+                      key: _dayKeys[report.recording.id],
+                      report: report,
+                      lesson: widget.lesson,
+                      isToday: DateUtils.isSameDay(
+                          report.date, DateTime.now()),
+                    ),
 
                 // ===== التقارير الأسبوعية =====
                 if (periods.weeks.isNotEmpty) ...[
@@ -579,7 +709,7 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                     _PeriodCardTile(
                       period: week,
                       icon: Icons.date_range_rounded,
-                      dailyReports: reports,
+                      dailyReports: reportsDesc,
                       lesson: widget.lesson,
                       teacherName: widget.teacherName,
                       pathwayName: widget.pathwayName,
@@ -597,7 +727,7 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                     _PeriodCardTile(
                       period: month,
                       icon: Icons.calendar_month_rounded,
-                      dailyReports: reports,
+                      dailyReports: reportsDesc,
                       lesson: widget.lesson,
                       teacherName: widget.teacherName,
                       pathwayName: widget.pathwayName,

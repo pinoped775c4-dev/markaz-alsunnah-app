@@ -309,6 +309,32 @@ class LessonsService {
     });
   }
 
+  /// جلب آخر تسجيل يومي لدرس معيّن (الأحدث بالتاريخ) —
+  /// يُستخدم للترقيم التلقائي: "من" في الدرس الجديد = آخر "إلى" + 1.
+  /// شرط واحد (teacherId) + فلترة lessonId محلياً — بلا فهارس مركّبة.
+  Future<LessonRecording?> fetchLatestRecording({
+    required String teacherId,
+    required String lessonId,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('lesson_recordings')
+          .where('teacherId', isEqualTo: teacherId)
+          .get();
+      final recordings = snapshot.docs
+          .where((doc) => doc.data()['lessonId'] == lessonId)
+          .map((doc) => LessonRecording.fromFirestore(doc))
+          .toList();
+      if (recordings.isEmpty) return null;
+      // الأحدث بالتاريخ — فرز في الذاكرة
+      recordings.sort((a, b) => b.date.compareTo(a.date));
+      return recordings.first;
+    } catch (e) {
+      debugPrint('LessonsService.fetchLatestRecording error: $e');
+      return null;
+    }
+  }
+
   // ================= حذف تسجيل (مع إرجاع العداد) =================
 
   Future<LessonOpResult> deleteRecording(

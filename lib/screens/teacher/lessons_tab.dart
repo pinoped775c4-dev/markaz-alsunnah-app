@@ -1365,13 +1365,40 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
       _toController.text = '${e.to}';
       _notesController.text = e.notes ?? '';
     } else {
-      // تعبئة "من" تلقائياً بالنقطة التالية غير المنجزة
-      final nextFrom = widget.lesson.completedCount + 1;
-      if (nextFrom <= widget.lesson.totalCount) {
-        _fromController.text = '$nextFrom';
-      }
+      // تعبئة "من" تلقائياً — الترقيم التلقائي للبيوت/الصفحات:
+      // نبدأ من آخر "إلى" سُجّل فعلياً + 1 (مثال: أمس من 1 إلى 8 ← اليوم من 9).
+      // نعتمد على أحدث تسجيل من قاعدة البيانات (لا على completedCount الذي
+      // قد يكون قديماً في كائن الدرس الممرّر من القائمة).
+      _prefillFrom();
     }
     _loadStudents();
+  }
+
+  /// جلب آخر تسجيل ووضع "من" = آخر "إلى" + 1 تلقائياً.
+  /// إن لم توجد تسجيلات سابقة نبدأ من العداد الحالي + 1.
+  Future<void> _prefillFrom() async {
+    final lesson = widget.lesson;
+    int nextFrom;
+    try {
+      final latest = await widget.lessonsService.fetchLatestRecording(
+        teacherId: lesson.teacherId,
+        lessonId: lesson.id,
+      );
+      if (latest != null && latest.to >= 0) {
+        nextFrom = latest.to + 1;
+      } else {
+        nextFrom = lesson.completedCount + 1;
+      }
+    } catch (_) {
+      nextFrom = lesson.completedCount + 1;
+    }
+    if (!mounted) return;
+    // لا نطغى على قيمة كتبها المستخدم أثناء الجلب
+    if (_fromController.text.trim().isEmpty && nextFrom > 0) {
+      if (nextFrom <= lesson.totalCount || lesson.totalCount <= 0) {
+        setState(() => _fromController.text = '$nextFrom');
+      }
+    }
   }
 
   Future<void> _loadStudents() async {

@@ -210,10 +210,10 @@ class ReportPdfService {
         ? 'تقرير_أسبوعي_${lesson.name}'
         : 'تقرير_شهري_${lesson.name}';
 
-    await Printing.layoutPdf(
-      name: fileName,
-      onLayout: (_) async => doc.save(),
-    );
+    // تنزيل التقرير كملف PDF جاهز (على الويب يُنزَّل مباشرة،
+    // وعلى الجوال تظهر نافذة المشاركة/الحفظ كملف)
+    final bytes = await doc.save();
+    await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 
   static pw.Widget _info(String label, String value) => pw.Column(
