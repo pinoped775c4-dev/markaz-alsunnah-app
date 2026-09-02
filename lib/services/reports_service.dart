@@ -114,6 +114,88 @@ class PeriodCard {
   });
 }
 
+// ==================== نماذج تقارير المتون والقرآن ====================
+
+/// سجل طالب واحد داخل يوم نشاط (متن أو قرآن)
+class ActivityEntry {
+  final String studentName;
+  final double from;
+  final double to;
+  final double count;
+  final String? notes;
+
+  /// هل أتمّ الطالب المتن/الختمة بهذا السجل؟
+  final bool completesTotal;
+
+  const ActivityEntry({
+    required this.studentName,
+    required this.from,
+    required this.to,
+    required this.count,
+    this.notes,
+    required this.completesTotal,
+  });
+}
+
+/// تقرير يوم واحد لنشاط متعدد الطلاب (متون أو قرآن)
+class ActivityDayReport {
+  final DateTime date;
+  final String weekdayLabel;
+  final List<ActivityEntry> entries;
+
+  const ActivityDayReport({
+    required this.date,
+    required this.weekdayLabel,
+    required this.entries,
+  });
+
+  double get units => entries.fold(0.0, (s, e) => s + e.count);
+  int get studentsCount => entries.length;
+  bool get hasCompletion => entries.any((e) => e.completesTotal);
+
+  /// أسماء الطلاب الذين سجّلوا في هذا اليوم (بدون تكرار)
+  List<String> get participantNames =>
+      entries.map((e) => e.studentName).toSet().toList();
+}
+
+/// بيانات تقرير متن كاملة (المتن + الأيام + أقصى موضع وصل إليه الطلاب)
+class MutunReportData {
+  final Matna matna;
+  final List<ActivityDayReport> days;
+  final double reached;
+
+  const MutunReportData({
+    required this.matna,
+    required this.days,
+    required this.reached,
+  });
+
+  bool get isEmpty => days.isEmpty;
+  double get progress =>
+      matna.totalCount > 0 ? (reached / matna.totalCount).clamp(0.0, 1.0) : 0.0;
+  int get progressPercent => (progress * 100).round();
+}
+
+/// بيانات تقرير قرآن معلم في مسار
+
+class QuranReportData {
+  final List<ActivityDayReport> days;
+
+  /// ملخص تقدم كل طالب (بالاسم)
+  final Map<String, QuranProgressSummary> studentSummaries;
+  final int completedKhatmas;
+  final double totalPagesRead;
+
+  const QuranReportData({
+    required this.days,
+    required this.studentSummaries,
+    required this.completedKhatmas,
+    required this.totalPagesRead,
+  });
+
+  bool get isEmpty => days.isEmpty;
+}
+
 // ==================== خدمة التقارير ====================
 
 class ReportsService {
@@ -481,5 +563,300 @@ class ReportsService {
       studentNames: studentNames,
       matnaNames: matnaNames,
     );
+  }
+
+  // ==================== تقارير المتون والقرآن (للإدارة) ====================
+
+  /// بث متون مسار كامل (كل المعلمين في المسار)
+  Stream<List<Matna>> watchPathwayMutun(String pathwayId) {
+    return _firestore
+        .collection('mutun')
+        .where('pathwayId', isEqualTo: pathwayId)
+        .snapshots()
+        .map((snapshot) {
+      final items =
+          snapshot.docs.map((d) => Matna.fromFirestore(d)).toList();
+      items.sort((a, b) {
+        final at = a.createdAt ?? DateTime(2000);
+        final bt = b.createdAt ?? DateTime(2000);
+        return at.compareTo(bt);
+      });
+      return items;
+    });
+  }
+
+  /// بث تسجيلات القرآن في مسار كامل
+  Stream<List<QuranRecording>> watchPathwayQuranRecordings(
+      String pathwayId) {
+    return _firestore
+        .collection('quran_recordings')
+        .where('pathwayId', isEqualTo: pathwayId)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map((d) => QuranRecording.fromFirestore(d))
+          .toList();
+      items.sort((a, b) => a.date.compareTo(b.date));
+      return items;
+    });
+  }
+
+  /// التقرير اليومي لمتن (تسجيلات كل الطلاب مجمّعة حسب اليوم)
+  Future<MutunReportData> buildMutunDailyReports(Matna matna) async {
+    final results = await Future.wait([
+      _firestore
+          .collection('mutun_recordings')
+          .where('matnaId', isEqualTo: matna.id)
+          .get(),
+      // استعلام بشرط واحد فقط (تجنّب الفهرس المركّب) — الفلترة محليًا
+      _firestore
+          .collection('students')
+          .where('teacherId', isEqualTo: matna.teacherId)
+          .get(),
+    ]);
+
+    final studentNames = <String, String>{
+      for (final d in results[1].docs)
+        if (d.data()['pathwayId'] == matna.pathwayId)
+          d.id: (d.data()['name'] as String?) ?? 'طالب',
+    };
+
+    final recordings = results[0].docs
+        .map((d) => MutunRecording.fromFirestore(d))
+        .toList();
+
+    // تجميع التسجيلات حسب اليوم
+    final byDay = <DateTime, List<MutunRecording>>{};
+    for (final r in recordings) {
+      byDay.putIfAbsent(_dayOnly(r.date), () => []).add(r);
+    }
+
+    final days = byDay.entries.map((entry) {
+      final recs = entry.value..sort((a, b) => a.from.compareTo(b.from));
+      return ActivityDayReport(
+        date: entry.key,
+        weekdayLabel: recs.first.weekday,
+        entries: recs
+            .map((r) => ActivityEntry(
+                  studentName: studentNames[r.studentId] ?? 'طالب',
+                  from: r.from,
+                  to: r.to,
+                  count: r.count,
+                  notes: r.notes,
+                  completesTotal:
+                      matna.totalCount > 0 && r.to >= matna.totalCount,
+                ))
+            .toList(),
+      );
+    }).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    double reached = 0;
+    for (final r in recordings) {
+      if (r.to > reached) reached = r.to;
+    }
+
+    return MutunReportData(matna: matna, days: days, reached: reached);
+  }
+
+  /// التقرير اليومي لقرآن معلم في مسار (أوراد كل الطلاب مجمّعة حسب اليوم)
+  Future<QuranReportData> buildTeacherQuranDailyReports({
+    required String teacherId,
+    required String pathwayId,
+  }) async {
+    final results = await Future.wait([
+      _firestore
+          .collection('quran_recordings')
+          .where('teacherId', isEqualTo: teacherId)
+          .get(),
+      _firestore
+          .collection('students')
+          .where('teacherId', isEqualTo: teacherId)
+          .get(),
+    ]);
+
+    final studentNames = <String, String>{
+      for (final d in results[1].docs)
+        d.id: (d.data()['name'] as String?) ?? 'طالب',
+    };
+
+    // فلترة المسار محليًا (استعلام واحد فقط — بلا فهارس مركّبة)
+    final recordings = results[0].docs
+        .map((d) => QuranRecording.fromFirestore(d))
+        .where((r) => r.pathwayId == pathwayId)
+        .toList();
+
+    final byDay = <DateTime, List<QuranRecording>>{};
+    for (final r in recordings) {
+      byDay.putIfAbsent(_dayOnly(r.date), () => []).add(r);
+    }
+
+    final days = byDay.entries.map((entry) {
+      final recs = entry.value
+        ..sort((a, b) => a.fromPage.compareTo(b.fromPage));
+      return ActivityDayReport(
+        date: entry.key,
+        weekdayLabel: recs.first.weekday,
+        entries: recs
+            .map((r) => ActivityEntry(
+                  studentName: studentNames[r.studentId] ?? 'طالب',
+                  from: r.fromPage,
+                  to: r.toPage,
+                  count: r.count,
+                  notes: r.notes,
+                  completesTotal: r.completesKhatma,
+                ))
+            .toList(),
+      );
+    }).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    // ملخص تقدم كل طالب (ختمات + موضع القراءة الحالي)
+    final byStudent = <String, List<QuranRecording>>{};
+    for (final r in recordings) {
+      byStudent.putIfAbsent(r.studentId, () => []).add(r);
+    }
+    final summaries = <String, QuranProgressSummary>{};
+    for (final e in byStudent.entries) {
+      summaries[studentNames[e.key] ?? 'طالب'] =
+          summarizeQuranProgress(e.value);
+    }
+
+    int khatmas = 0;
+    for (final s in summaries.values) {
+      khatmas += s.completedKhatmas;
+    }
+
+    return QuranReportData(
+      days: days,
+      studentSummaries: summaries,
+      completedKhatmas: khatmas,
+      totalPagesRead: recordings.fold(0.0, (s, r) => s + r.count),
+    );
+  }
+
+  /// بناء بطاقات الفترات (أسبوعية/شهرية) لنشاط المتون أو القرآن
+  ///
+  /// نفس قاعدة الأسابيع والأشهر في تقارير الدروس:
+  /// الأسبوع من السبت إلى الجمعة، والشهر من أوله لآخره.
+  /// [completionBase] إجمالي وحدات المتن (لنسبة الإنجاز)، أو 0 للقرآن.
+  ({List<PeriodCard> weeks, List<PeriodCard> months})
+      buildActivityPeriodCards({
+    required List<ActivityDayReport> days,
+    required double completionBase,
+  }) {
+    if (days.isEmpty) {
+      return (weeks: <PeriodCard>[], months: <PeriodCard>[]);
+    }
+
+    PeriodReport reportFor(DateTime start, DateTime end) {
+      final inPeriod = days.where((d) {
+        return !d.date.isBefore(_dayOnly(start)) &&
+            !d.date.isAfter(_dayOnly(end));
+      }).toList();
+
+      final units = inPeriod.fold(0.0, (s, d) => s + d.units);
+      final recordingsCount =
+          inPeriod.fold(0, (s, d) => s + d.entries.length);
+
+      // مشاركة الطلاب: أيام تسجيل الطالب / أيام النشاط في الفترة
+      final activeDays = inPeriod.length;
+      final studentDays = <String, int>{};
+      for (final d in inPeriod) {
+        for (final name in d.participantNames) {
+          studentDays[name] = (studentDays[name] ?? 0) + 1;
+        }
+      }
+      final rates = <String, double>{};
+      for (final e in studentDays.entries) {
+        rates[e.key] = activeDays > 0 ? e.value / activeDays : 0.0;
+      }
+
+      double completion = 0.0;
+      if (completionBase > 0) {
+        double maxTo = 0;
+        for (final d in inPeriod) {
+          for (final en in d.entries) {
+            if (en.to > maxTo) maxTo = en.to;
+          }
+        }
+        completion = (maxTo / completionBase).clamp(0.0, 1.0);
+      }
+
+      return PeriodReport(
+        start: start,
+        end: end,
+        unitsAccomplished: units,
+        recordingsCount: recordingsCount,
+        attendanceRates: rates,
+        completionRate: completion,
+      );
+    }
+
+    final now = DateTime.now();
+    final firstDate = days.first.date;
+    final lastDate = days.last.date;
+
+    // ===== الأسابيع (السبت → الجمعة) =====
+    final weeks = <PeriodCard>[];
+    var weekStart =
+        firstDate.subtract(Duration(days: (firstDate.weekday % 7)));
+    int weekNumber = 1;
+
+    while (!weekStart.isAfter(lastDate) && weeks.length < 60) {
+      final weekEnd = weekStart.add(const Duration(days: 6));
+      final isCurrentWeek = !_dayOnly(now).isBefore(weekStart) &&
+          !_dayOnly(now).isAfter(weekEnd);
+      final showCurrent = isCurrentWeek && now.weekday == 5;
+      final finished = _dayOnly(now).isAfter(weekEnd);
+
+      if (showCurrent || finished) {
+        weeks.add(PeriodCard(
+          id: 'week_${weekStart.millisecondsSinceEpoch}',
+          title: 'الأسبوع ${_toArabicNumber(weekNumber)}',
+          subtitle:
+              '${_fmt(weekStart)} ← ${_fmt(weekEnd)}${showCurrent ? ' • جارٍ' : ''}',
+          start: weekStart,
+          end: weekEnd,
+          isCurrent: showCurrent,
+          report: reportFor(weekStart, weekEnd),
+        ));
+      }
+
+      weekStart = weekStart.add(const Duration(days: 7));
+      weekNumber++;
+    }
+
+    // ===== الأشهر =====
+    final months = <PeriodCard>[];
+    var monthCursor = DateTime(firstDate.year, firstDate.month);
+
+    while (!monthCursor.isAfter(lastDate) && months.length < 24) {
+      final monthStart = DateTime(monthCursor.year, monthCursor.month);
+      final monthEnd = DateTime(monthCursor.year, monthCursor.month + 1)
+          .subtract(const Duration(days: 1));
+      final isCurrentMonth =
+          now.year == monthStart.year && now.month == monthStart.month;
+      final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
+      final showCurrent = isCurrentMonth && now.day == lastDayOfMonth;
+      final finished = _dayOnly(now).isAfter(monthEnd);
+
+      if (showCurrent || finished) {
+        months.add(PeriodCard(
+          id: 'month_${monthStart.year}_${monthStart.month}',
+          title: 'شهر ${_monthName(monthStart.month)} ${monthStart.year}',
+          subtitle:
+              '${_fmt(monthStart)} ← ${_fmt(monthEnd)}${showCurrent ? ' • جارٍ' : ''}',
+          start: monthStart,
+          end: monthEnd,
+          isCurrent: showCurrent,
+          report: reportFor(monthStart, monthEnd),
+        ));
+      }
+
+      monthCursor = DateTime(monthCursor.year, monthCursor.month + 1);
+    }
+
+    return (weeks: weeks, months: months);
   }
 }

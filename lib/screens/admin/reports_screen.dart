@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -6,13 +8,15 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/app_user.dart';
 import '../../models/lesson.dart';
+import '../../models/matna.dart';
+import '../../models/quran.dart';
 import '../../services/report_pdf_service.dart';
 import '../../services/reports_service.dart';
 import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
 
-/// شاشة تقارير الإدارة — 4 أقسام ← معلمو القسم ← دروس المعلم ← يومي/أسبوعي/شهري
+/// شاشة تقارير الإدارة — الأقسام ← معلمو القسم ونشاطهم (دروس/متون/قرآن) ← يومي/أسبوعي/شهري
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -26,8 +30,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pathways =
-        AppConstants.pathways.where((p) => p.id != 'quran').toList();
+    // كل الأقسام — بما فيها مسار القرآن الكريم
+    final pathways = AppConstants.pathways;
 
     return Scaffold(
       appBar: AppBar(
@@ -64,8 +68,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               subtitle: 'اضغط على قسم لعرض معلميه وتقاريرهم',
             ),
             const SizedBox(height: 4),
-            // ===== 4 أقسام بأيقونات دائرية (صف 2 × 2) =====
-            for (var row = 0; row < 2; row++)
+            // ===== الأقسام بأيقونات دائرية (صفوف × عمودان) =====
+            for (var row = 0; row * 2 < pathways.length; row++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
@@ -201,8 +205,8 @@ class PathwayTeachersScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(pathway.name),
-            const Text(
-              'المعلمون الذين لديهم دروس في هذا القسم',
+            Text(
+              'معلمو القسم ونشاطهم في هذا القسم',
               style:
                   TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
@@ -210,58 +214,107 @@ class PathwayTeachersScreen extends StatelessWidget {
         ),
       ),
       body: WatermarkedBackground(
-        // دروس القسم أولاً (تحدد من له دروس)، ثم أسماء المعلمين
+        // دمج مصادر النشاط: دروس + متون + تسجيلات قرآن
         child: StreamBuilder<List<Lesson>>(
-          stream: reportsService.watchPathwayLessons(pathway.id),
+          stream: pathway.hasLessons
+              ? reportsService.watchPathwayLessons(pathway.id)
+              : Stream.value(const <Lesson>[]),
           builder: (context, lessonsSnap) {
-            if (lessonsSnap.hasError) {
-              return ErrorState(
-                message: 'حدث خطأ أثناء تحميل دروس القسم',
-                onRetry: () {},
-              );
-            }
-            if (!lessonsSnap.hasData) {
-              return const ListSkeleton(itemCount: 3);
-            }
+            return StreamBuilder<List<Matna>>(
+              stream: pathway.hasMutun
+                  ? reportsService.watchPathwayMutun(pathway.id)
+                  : Stream.value(const <Matna>[]),
+              builder: (context, mutunSnap) {
+                return StreamBuilder<List<QuranRecording>>(
+                  stream: pathway.hasQuran
+                      ? reportsService
+                          .watchPathwayQuranRecordings(pathway.id)
+                      : Stream.value(const <QuranRecording>[]),
+                  builder: (context, quranSnap) {
+                    if (lessonsSnap.hasError ||
+                        mutunSnap.hasError ||
+                        quranSnap.hasError) {
+                      return ErrorState(
+                        message: 'حدث خطأ أثناء تحميل نشاط القسم',
+                        onRetry: () {},
+                      );
+                    }
+                    if (!lessonsSnap.hasData ||
+                        !mutunSnap.hasData ||
+                        !quranSnap.hasData) {
+                      return const ListSkeleton(itemCount: 3);
+                    }
 
-            final lessons = lessonsSnap.data!;
-            // مجمّعة حسب المعلم
-            final byTeacher = <String, List<Lesson>>{};
-            for (final l in lessons) {
-              byTeacher.putIfAbsent(l.teacherId, () => []).add(l);
-            }
+                    // مجمّعة حسب المعلم — من المصادر الثلاثة
+                    final lessonsByTeacher = <String, List<Lesson>>{};
+                    for (final l in lessonsSnap.data!) {
+                      lessonsByTeacher
+                          .putIfAbsent(l.teacherId, () => [])
+                          .add(l);
+                    }
+                    final mutunByTeacher = <String, List<Matna>>{};
+                    for (final m in mutunSnap.data!) {
+                      mutunByTeacher
+                          .putIfAbsent(m.teacherId, () => [])
+                          .add(m);
+                    }
+                    final quranByTeacher = <String, List<QuranRecording>>{};
+                    for (final r in quranSnap.data!) {
+                      quranByTeacher
+                          .putIfAbsent(r.teacherId, () => [])
+                          .add(r);
+                    }
 
-            if (byTeacher.isEmpty) {
-              return EmptyState(
-                icon: Icons.menu_book_outlined,
-                title: 'لا توجد دروس في هذا القسم',
-                message:
-                    'لم يُعدّ أي معلم درساً في "${pathway.name}" بعد',
-              );
-            }
+                    // اتحاد معرفات المعلمين (بدون تكرار) ثم فرز أبجدي
+                    final teacherIds = {
+                      ...lessonsByTeacher.keys,
+                      ...mutunByTeacher.keys,
+                      ...quranByTeacher.keys,
+                    }.toList();
 
-            return StreamBuilder<List<AppUser>>(
-              stream: teachersService.watchTeachers(),
-              builder: (context, teachersSnap) {
-                final teachers = teachersSnap.data ?? [];
-                final names = {
-                  for (final t in teachers) t.uid: t.name,
-                };
+                    if (teacherIds.isEmpty) {
+                      return EmptyState(
+                        icon: Icons.menu_book_outlined,
+                        title: 'لا يوجد نشاط في هذا القسم',
+                        message:
+                            'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
+                      );
+                    }
 
-                final teacherIds = byTeacher.keys.toList();
+                    return StreamBuilder<List<AppUser>>(
+                      stream: teachersService.watchTeachers(),
+                      builder: (context, teachersSnap) {
+                        final teachers = teachersSnap.data ?? [];
+                        final names = {
+                          for (final t in teachers) t.uid: t.name,
+                        };
 
-                return ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 24),
-                  itemCount: teacherIds.length,
-                  itemBuilder: (context, index) {
-                    final teacherId = teacherIds[index];
-                    final teacherLessons = byTeacher[teacherId]!;
-                    final name = names[teacherId] ?? 'معلم';
-                    return _TeacherLessonsTile(
-                      teacherName: name,
-                      lessons: teacherLessons,
-                      pathway: pathway,
-                      reportsService: reportsService,
+                        teacherIds.sort((a, b) =>
+                            (names[a] ?? 'م')
+                                .compareTo(names[b] ?? 'م'));
+
+                        return ListView.builder(
+                          padding:
+                              const EdgeInsets.only(top: 8, bottom: 24),
+                          itemCount: teacherIds.length,
+                          itemBuilder: (context, index) {
+                            final teacherId = teacherIds[index];
+                            final name = names[teacherId] ?? 'معلم';
+                            return _TeacherLessonsTile(
+                              teacherId: teacherId,
+                              teacherName: name,
+                              lessons:
+                                  lessonsByTeacher[teacherId] ?? const [],
+                              mutun:
+                                  mutunByTeacher[teacherId] ?? const [],
+                              quranRecordings:
+                                  quranByTeacher[teacherId] ?? const [],
+                              pathway: pathway,
+                              reportsService: reportsService,
+                            );
+                          },
+                        );
+                      },
                     );
                   },
                 );
@@ -275,17 +328,43 @@ class PathwayTeachersScreen extends StatelessWidget {
 }
 
 class _TeacherLessonsTile extends StatelessWidget {
+  final String teacherId;
   final String teacherName;
   final List<Lesson> lessons;
+  final List<Matna> mutun;
+  final List<QuranRecording> quranRecordings;
   final PathwayInfo pathway;
   final ReportsService reportsService;
 
   const _TeacherLessonsTile({
+    required this.teacherId,
     required this.teacherName,
     required this.lessons,
+    required this.mutun,
+    required this.quranRecordings,
     required this.pathway,
     required this.reportsService,
   });
+
+  /// نص ملخص نشاط المعلم (دروس + متون + قرآن)
+  String get _activitySummary {
+    final parts = <String>[];
+    if (lessons.isNotEmpty) {
+      parts.add(lessons.length == 1
+          ? 'درس واحد'
+          : '${lessons.length} دروس');
+    }
+    if (mutun.isNotEmpty) {
+      parts.add(mutun.length == 1
+          ? 'متن واحد'
+          : '${mutun.length} متون');
+    }
+    if (quranRecordings.isNotEmpty) {
+      parts.add('قرآن');
+    }
+    if (parts.isEmpty) return 'لا يوجد نشاط';
+    return parts.join(' • ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,19 +383,44 @@ class _TeacherLessonsTile extends StatelessWidget {
         child: ExpansionTile(
           leading: InitialAvatar(name: teacherName),
           title: Text(teacherName, style: textTheme.titleSmall),
-          subtitle: Text(
-            lessons.length == 1
-                ? 'درس واحد'
-                : '${lessons.length} دروس',
-            style: textTheme.bodySmall,
-          ),
+          subtitle: Text(_activitySummary, style: textTheme.bodySmall),
           children: [
+            // ===== الدروس =====
             for (final lesson in lessons)
               _LessonTile(
                 lesson: lesson,
                 teacherName: teacherName,
                 pathwayName: pathway.name,
                 reportsService: reportsService,
+              ),
+
+            // ===== المتون =====
+            for (final matna in mutun)
+              _MutunTile(
+                matna: matna,
+                teacherName: teacherName,
+                pathwayName: pathway.name,
+                reportsService: reportsService,
+              ),
+
+            // ===== القرآن (تقرير واحد لكل معلم في المسار) =====
+            if (quranRecordings.isNotEmpty)
+              _QuranTile(
+                teacherId: teacherId,
+                teacherName: teacherName,
+                pathway: pathway,
+                reportsService: reportsService,
+              ),
+
+            if (lessons.isEmpty && mutun.isEmpty && quranRecordings.isEmpty)
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                child: Text(
+                  'لا يوجد نشاط مسجّل لهذا المعلم',
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: AppColors.inkMuted),
+                ),
               ),
             const SizedBox(height: 6),
           ],
@@ -1711,6 +1815,1801 @@ class _PeriodSummaryCard extends StatelessWidget {
           if (rates.isNotEmpty) ...[
             const SizedBox(height: 18),
             Text('نسبة حضور الطلاب خلال الفترة',
+                style: textTheme.titleSmall),
+            const SizedBox(height: 10),
+            for (final entry in rates)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        entry.key,
+                        style: textTheme.bodyMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: entry.value,
+                          minHeight: 8,
+                          backgroundColor: AppColors.lineSoft,
+                          valueColor:
+                              const AlwaysStoppedAnimation<Color>(
+                                  AppColors.success),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 44,
+                      child: Text(
+                        '${(entry.value * 100).round()}%',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12.5,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة متن داخل المعلم ====================
+
+class _MutunTile extends StatelessWidget {
+  final Matna matna;
+  final String teacherName;
+  final String pathwayName;
+  final ReportsService reportsService;
+
+  const _MutunTile({
+    required this.matna,
+    required this.teacherName,
+    required this.pathwayName,
+    required this.reportsService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      child: Material(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MutunReportScreen(
+                  matna: matna,
+                  teacherName: teacherName,
+                  pathwayName: pathwayName,
+                  reportsService: reportsService,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    matna.isNazm
+                        ? Icons.format_list_numbered_rounded
+                        : Icons.article_rounded,
+                    color: AppColors.primary,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(matna.name, style: textTheme.titleSmall),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${matna.typeLabel} • ${matna.totalCount} ${matna.unitLabel}',
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 11),
+                const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 13, color: AppColors.inkMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة القرآن داخل المعلم ====================
+
+class _QuranTile extends StatelessWidget {
+  final String teacherId;
+  final String teacherName;
+  final PathwayInfo pathway;
+  final ReportsService reportsService;
+
+  const _QuranTile({
+    required this.teacherId,
+    required this.teacherName,
+    required this.pathway,
+    required this.reportsService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      child: Material(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => QuranReportScreen(
+                  teacherId: teacherId,
+                  teacherName: teacherName,
+                  pathway: pathway,
+                  reportsService: reportsService,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.goldSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.menu_book_rounded,
+                      color: AppColors.goldDark, size: 21),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('القرآن الكريم — الأوراد والختمات',
+                          style: textTheme.titleSmall),
+                      const SizedBox(height: 3),
+                      Text(
+                        pathway.isQuranOnly
+                            ? 'متابعة الأوراد والختمات'
+                            : 'ورد القرآن في هذا القسم',
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 11),
+                const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 13, color: AppColors.inkMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== شاشة تقرير المتن (يومي + أسبوعي + شهري) ====================
+
+class MutunReportScreen extends StatefulWidget {
+  final Matna matna;
+  final String teacherName;
+  final String pathwayName;
+  final ReportsService reportsService;
+
+  const MutunReportScreen({
+    super.key,
+    required this.matna,
+    required this.teacherName,
+    required this.pathwayName,
+    required this.reportsService,
+  });
+
+  @override
+  State<MutunReportScreen> createState() => _MutunReportScreenState();
+}
+
+class _MutunReportScreenState extends State<MutunReportScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  // مفاتيح البطاقات اليومية للانتقال التلقائي إلى اليوم الحالي
+  final Map<String, GlobalKey> _dayKeys = {};
+
+  Future<MutunReportData>? _future;
+
+  // البحث بالتاريخ — null يعني عرض كل التسجيلات اليومية
+  DateTime? _searchDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.reportsService.buildMutunDailyReports(widget.matna);
+  }
+
+  /// نافذة اختيار تاريخ البحث عن التسجيلات اليومية
+  Future<void> _pickSearchDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _searchDate ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      helpText: 'ابحث عن تسجيلات يوم معيّن',
+      cancelText: 'إلغاء',
+      confirmText: 'بحث',
+      locale: const Locale('ar'),
+    );
+    if (picked == null) return;
+    setState(() => _searchDate = picked);
+  }
+
+  /// فلترة التسجيلات اليومية بحسب تاريخ البحث المختار
+  static List<ActivityDayReport> _filterByDate(
+    List<ActivityDayReport> reports,
+    DateTime? date,
+  ) {
+    if (date == null) return reports;
+    return reports
+        .where((r) => DateUtils.isSameDay(r.date, date))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// الانتقال تلقائياً إلى بطاقة اليوم الحالي بعد البناء
+  void _scrollToToday(List<ActivityDayReport> reportsDesc) {
+    final now = DateTime.now();
+    ActivityDayReport? today;
+    for (final r in reportsDesc) {
+      if (DateUtils.isSameDay(r.date, now)) today = r;
+    }
+    final target = today ?? (reportsDesc.isEmpty ? null : reportsDesc.first);
+    if (target == null) return;
+
+    final key = _dayKeys[DateFormat('y-M-d').format(target.date)];
+    if (key == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+          alignment: 0.12,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.matna.name),
+            Text(
+              '${widget.teacherName} • ${widget.pathwayName}',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.inkSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          // زر البحث بالتاريخ
+          IconButton(
+            tooltip: _searchDate == null
+                ? 'بحث بالتاريخ'
+                : 'إلغاء البحث بالتاريخ',
+            onPressed: () {
+              if (_searchDate != null) {
+                setState(() => _searchDate = null);
+              } else {
+                _pickSearchDate();
+              }
+            },
+            icon: _searchDate == null
+                ? const Icon(Icons.calendar_month_outlined)
+                : const Icon(Icons.filter_alt_off_rounded),
+          ),
+          IconButton(
+            tooltip: 'بحث بالتاريخ',
+            onPressed: _pickSearchDate,
+            icon: const Icon(Icons.search_rounded),
+          ),
+        ],
+      ),
+      body: WatermarkedBackground(
+        child: FutureBuilder<MutunReportData>(
+          future: _future,
+          builder: (context, snapshot) {
+            final textTheme = Theme.of(context).textTheme;
+            if (snapshot.hasError) {
+              return ErrorState(
+                message: 'حدث خطأ أثناء تحميل التقرير',
+                onRetry: () => setState(() {
+                  _future = widget.reportsService
+                      .buildMutunDailyReports(widget.matna);
+                }),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final data = snapshot.data!;
+            if (data.isEmpty) {
+              return const EmptyState(
+                icon: Icons.event_busy_rounded,
+                title: 'لا توجد تسجيلات يومية',
+                message: 'لم يسجّل المعلم أي متابعة لهذا المتن بعد',
+              );
+            }
+
+            // ترتيب تنازلي: الأحدث في الأعلى والأقدم في الأسفل
+            final reportsDesc = data.days.reversed.toList();
+
+            // فلترة التسجيلات اليومية بحسب تاريخ البحث (إن وُجد)
+            final visibleReports = _filterByDate(reportsDesc, _searchDate);
+
+            // جهّز مفاتيح البطاقات
+            _dayKeys.clear();
+            for (final r in visibleReports) {
+              _dayKeys[DateFormat('y-M-d').format(r.date)] = GlobalKey();
+            }
+
+            // البطاقات الأسبوعية والشهرية — بقاعدة ظهور الإدارة نفسها
+            final periods = _LessonReportScreenState._adminPeriods(
+              widget.reportsService.buildActivityPeriodCards(
+                days: data.days,
+                completionBase: widget.matna.totalCount.toDouble(),
+              ),
+            );
+
+            if (_searchDate == null) _scrollToToday(visibleReports);
+
+            return ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              children: [
+                // ===== ملخص تقدم المتن =====
+                if (_searchDate == null) _MutunProgressCard(data: data),
+
+                // ===== شريط البحث بالتاريخ =====
+                if (_searchDate != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.lineSoft),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.filter_alt_rounded,
+                            size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'نتائج البحث: ${DateFormat('d MMMM y', 'ar').format(_searchDate!)}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _searchDate = null),
+                          child: const Text('عرض الكل'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // ===== التقارير اليومية =====
+                SectionHeader(
+                  title: _searchDate == null
+                      ? 'التقرير اليومي'
+                      : 'نتائج البحث — ${visibleReports.length} يوم',
+                  subtitle: _searchDate == null
+                      ? 'الأحدث في الأعلى — اضغط للتفاصيل'
+                      : 'تسجيلات يوم ${DateFormat('d/M/y', 'ar').format(_searchDate!)}',
+                ),
+                if (visibleReports.isEmpty)
+                  const EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: 'لا توجد نتائج',
+                    message: 'لا توجد تسجيلات في هذا التاريخ',
+                  )
+                else
+                  for (final report in visibleReports)
+                    _ActivityDayCard(
+                      key: _dayKeys[DateFormat('y-M-d')
+                          .format(report.date)],
+                      report: report,
+                      unitLabel: widget.matna.unitLabel,
+                      completionLabel: 'حفظ تام',
+                      title: widget.matna.name,
+                      isToday: DateUtils.isSameDay(
+                          report.date, DateTime.now()),
+                    ),
+
+                // ===== التقارير الأسبوعية =====
+                if (periods.weeks.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'التقارير الأسبوعية',
+                    subtitle: 'كل أسبوع منتهٍ في بطاقة',
+                  ),
+                  for (final week in periods.weeks)
+                    _ActivityPeriodCardTile(
+                      period: week,
+                      icon: Icons.date_range_rounded,
+                      days: data.days,
+                      unitLabel: widget.matna.unitLabel,
+                      completionLabel: 'حفظ تام',
+                      title: widget.matna.name,
+                    ),
+                ],
+
+                // ===== التقارير الشهرية =====
+                if (periods.months.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'التقارير الشهرية',
+                    subtitle: 'كل شهر منتهٍ في بطاقة',
+                  ),
+                  for (final month in periods.months)
+                    _ActivityPeriodCardTile(
+                      period: month,
+                      icon: Icons.calendar_month_rounded,
+                      days: data.days,
+                      unitLabel: widget.matna.unitLabel,
+                      completionLabel: 'حفظ تام',
+                      title: widget.matna.name,
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة ملخص تقدم المتن ====================
+
+class _MutunProgressCard extends StatelessWidget {
+  final MutunReportData data;
+
+  const _MutunProgressCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final matna = data.matna;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            matna.name,
+            style: textTheme.titleMedium?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${matna.typeLabel} • وصل الطلاب إلى ${fmtNum(data.reached)}'
+            ' من ${fmtNum(matna.totalCount.toDouble())} ${matna.unitLabel}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: data.progress,
+                    minHeight: 9,
+                    backgroundColor:
+                        Colors.white.withValues(alpha: 0.25),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${data.progressPercent}%',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== شاشة تقرير القرآن (يومي + أسبوعي + شهري) ====================
+
+class QuranReportScreen extends StatefulWidget {
+  final String teacherId;
+  final String teacherName;
+  final PathwayInfo pathway;
+  final ReportsService reportsService;
+
+  const QuranReportScreen({
+    super.key,
+    required this.teacherId,
+    required this.teacherName,
+    required this.pathway,
+    required this.reportsService,
+  });
+
+  @override
+  State<QuranReportScreen> createState() => _QuranReportScreenState();
+}
+
+class _QuranReportScreenState extends State<QuranReportScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  // مفاتيح البطاقات اليومية للانتقال التلقائي إلى اليوم الحالي
+  final Map<String, GlobalKey> _dayKeys = {};
+
+  Future<QuranReportData>? _future;
+
+  // البحث بالتاريخ — null يعني عرض كل الأوراد اليومية
+  DateTime? _searchDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _future = widget.reportsService.buildTeacherQuranDailyReports(
+      teacherId: widget.teacherId,
+      pathwayId: widget.pathway.id,
+    );
+  }
+
+  /// نافذة اختيار تاريخ البحث عن الأوراد اليومية
+  Future<void> _pickSearchDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _searchDate ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      helpText: 'ابحث عن أوراد يوم معيّن',
+      cancelText: 'إلغاء',
+      confirmText: 'بحث',
+      locale: const Locale('ar'),
+    );
+    if (picked == null) return;
+    setState(() => _searchDate = picked);
+  }
+
+  /// فلترة الأوراد اليومية بحسب تاريخ البحث المختار
+  static List<ActivityDayReport> _filterByDate(
+    List<ActivityDayReport> reports,
+    DateTime? date,
+  ) {
+    if (date == null) return reports;
+    return reports
+        .where((r) => DateUtils.isSameDay(r.date, date))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// الانتقال تلقائياً إلى بطاقة اليوم الحالي بعد البناء
+  void _scrollToToday(List<ActivityDayReport> reportsDesc) {
+    final now = DateTime.now();
+    ActivityDayReport? today;
+    for (final r in reportsDesc) {
+      if (DateUtils.isSameDay(r.date, now)) today = r;
+    }
+    final target = today ?? (reportsDesc.isEmpty ? null : reportsDesc.first);
+    if (target == null) return;
+
+    final key = _dayKeys[DateFormat('y-M-d').format(target.date)];
+    if (key == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+          alignment: 0.12,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('القرآن الكريم'),
+            Text(
+              '${widget.teacherName} • ${widget.pathway.name}',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.inkSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          // زر البحث بالتاريخ
+          IconButton(
+            tooltip: _searchDate == null
+                ? 'بحث بالتاريخ'
+                : 'إلغاء البحث بالتاريخ',
+            onPressed: () {
+              if (_searchDate != null) {
+                setState(() => _searchDate = null);
+              } else {
+                _pickSearchDate();
+              }
+            },
+            icon: _searchDate == null
+                ? const Icon(Icons.calendar_month_outlined)
+                : const Icon(Icons.filter_alt_off_rounded),
+          ),
+          IconButton(
+            tooltip: 'بحث بالتاريخ',
+            onPressed: _pickSearchDate,
+            icon: const Icon(Icons.search_rounded),
+          ),
+        ],
+      ),
+      body: WatermarkedBackground(
+        child: FutureBuilder<QuranReportData>(
+          future: _future,
+          builder: (context, snapshot) {
+            final textTheme = Theme.of(context).textTheme;
+            if (snapshot.hasError) {
+              return ErrorState(
+                message: 'حدث خطأ أثناء تحميل التقرير',
+                onRetry: () => setState(_load),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final data = snapshot.data!;
+            if (data.isEmpty) {
+              return const EmptyState(
+                icon: Icons.event_busy_rounded,
+                title: 'لا توجد تسجيلات يومية',
+                message: 'لم يسجّل المعلم أي ورد قرآني بعد',
+              );
+            }
+
+            // ترتيب تنازلي: الأحدث في الأعلى والأقدم في الأسفل
+            final reportsDesc = data.days.reversed.toList();
+
+            // فلترة الأوراد اليومية بحسب تاريخ البحث (إن وُجد)
+            final visibleReports = _filterByDate(reportsDesc, _searchDate);
+
+            // جهّز مفاتيح البطاقات
+            _dayKeys.clear();
+            for (final r in visibleReports) {
+              _dayKeys[DateFormat('y-M-d').format(r.date)] = GlobalKey();
+            }
+
+            // البطاقات الأسبوعية والشهرية — بقاعدة ظهور الإدارة نفسها
+            // (القرآن بلا نسبة إنجاز — completionBase = 0)
+            final periods = _LessonReportScreenState._adminPeriods(
+              widget.reportsService.buildActivityPeriodCards(
+                days: data.days,
+                completionBase: 0,
+              ),
+            );
+
+            // ملخص تقدم الطلاب مرتّب أبجديًا بالاسم
+            final summaries = data.studentSummaries.entries.toList()
+              ..sort((a, b) => a.key.compareTo(b.key));
+
+            if (_searchDate == null) _scrollToToday(visibleReports);
+
+            return ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              children: [
+                // ===== ملخص الأوراد والختمات =====
+                if (_searchDate == null)
+                  _QuranHeaderCard(data: data),
+
+                // ===== شريط البحث بالتاريخ =====
+                if (_searchDate != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.lineSoft),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.filter_alt_rounded,
+                            size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'نتائج البحث: ${DateFormat('d MMMM y', 'ar').format(_searchDate!)}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _searchDate = null),
+                          child: const Text('عرض الكل'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // ===== التقارير اليومية =====
+                SectionHeader(
+                  title: _searchDate == null
+                      ? 'التقرير اليومي'
+                      : 'نتائج البحث — ${visibleReports.length} يوم',
+                  subtitle: _searchDate == null
+                      ? 'الأحدث في الأعلى — اضغط للتفاصيل'
+                      : 'أوراد يوم ${DateFormat('d/M/y', 'ar').format(_searchDate!)}',
+                ),
+                if (visibleReports.isEmpty)
+                  const EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: 'لا توجد نتائج',
+                    message: 'لا توجد أوراد في هذا التاريخ',
+                  )
+                else
+                  for (final report in visibleReports)
+                    _ActivityDayCard(
+                      key: _dayKeys[DateFormat('y-M-d')
+                          .format(report.date)],
+                      report: report,
+                      unitLabel: 'صفحة',
+                      completionLabel: 'ختمة',
+                      title: 'ورد القرآن الكريم',
+                      isToday: DateUtils.isSameDay(
+                          report.date, DateTime.now()),
+                    ),
+
+                // ===== ملخص تقدم الطلاب =====
+                if (_searchDate == null && summaries.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'ملخص تقدم الطلاب',
+                    subtitle: 'الختمات المكتملة وموضع القراءة الحالي',
+                  ),
+                  for (final entry in summaries)
+                    _StudentQuranSummaryTile(
+                      name: entry.key,
+                      summary: entry.value,
+                    ),
+                ],
+
+                // ===== التقارير الأسبوعية =====
+                if (periods.weeks.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'التقارير الأسبوعية',
+                    subtitle: 'كل أسبوع منتهٍ في بطاقة',
+                  ),
+                  for (final week in periods.weeks)
+                    _ActivityPeriodCardTile(
+                      period: week,
+                      icon: Icons.date_range_rounded,
+                      days: data.days,
+                      unitLabel: 'صفحة',
+                      completionLabel: 'ختمة',
+                      title: 'ورد القرآن الكريم',
+                    ),
+                ],
+
+                // ===== التقارير الشهرية =====
+                if (periods.months.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'التقارير الشهرية',
+                    subtitle: 'كل شهر منتهٍ في بطاقة',
+                  ),
+                  for (final month in periods.months)
+                    _ActivityPeriodCardTile(
+                      period: month,
+                      icon: Icons.calendar_month_rounded,
+                      days: data.days,
+                      unitLabel: 'صفحة',
+                      completionLabel: 'ختمة',
+                      title: 'ورد القرآن الكريم',
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة ملخص الأوراد والختمات ====================
+
+class _QuranHeaderCard extends StatelessWidget {
+  final QuranReportData data;
+
+  const _QuranHeaderCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppColors.goldGradient,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.menu_book_rounded,
+                    color: Colors.white, size: 21),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'القرآن الكريم — الأوراد والختمات',
+                      style: textTheme.titleMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fmtNum(data.totalPagesRead),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'صفحة مقروءة',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${data.completedKhatmas}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'ختمة مكتملة',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة ملخص تقدم طالب في القرآن ====================
+
+class _StudentQuranSummaryTile extends StatelessWidget {
+  final String name;
+  final QuranProgressSummary summary;
+
+  const _StudentQuranSummaryTile({
+    required this.name,
+    required this.summary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.lineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              InitialAvatar(name: name, radius: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(name, style: textTheme.titleSmall),
+              ),
+              if (summary.completedKhatmas > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.goldGradient,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    summary.completedKhatmas == 1
+                        ? 'ختمة'
+                        : '${summary.completedKhatmas} ختمات',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: summary.khatmaProgress,
+                    minHeight: 7,
+                    backgroundColor: AppColors.lineSoft,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppColors.gold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 100,
+                child: Text(
+                  'صفحة ${summary.currentPage} من ${AppConstants.khatmaPages}',
+                  textAlign: TextAlign.end,
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.goldDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة يوم نشاط (متون/قرآن) ====================
+
+class _ActivityDayCard extends StatelessWidget {
+  final ActivityDayReport report;
+  final String unitLabel;
+  final String completionLabel;
+  final String title;
+  final bool isToday;
+
+  const _ActivityDayCard({
+    super.key,
+    required this.report,
+    required this.unitLabel,
+    required this.completionLabel,
+    required this.title,
+    required this.isToday,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final dateText = DateFormat('d MMMM y', 'ar').format(report.date);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: isToday ? AppColors.primary : AppColors.lineSoft,
+          width: isToday ? 1.6 : 1,
+        ),
+        boxShadow: isToday
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ActivityDayDetailScreen(
+                  report: report,
+                  unitLabel: unitLabel,
+                  completionLabel: completionLabel,
+                  title: title,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isToday
+                            ? AppColors.primarySurface
+                            : AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${report.weekdayLabel}، $dateText',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: isToday
+                              ? AppColors.primaryDark
+                              : AppColors.ink,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (isToday) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.goldGradient,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'اليوم',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 14,
+                        color:
+                            AppColors.inkMuted.withValues(alpha: 0.6)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _MiniStat(
+                      icon: Icons.how_to_reg_rounded,
+                      label: 'الطلاب',
+                      value: '${report.studentsCount}',
+                      color: AppColors.success,
+                    ),
+                    const SizedBox(width: 10),
+                    _MiniStat(
+                      icon: Icons.format_list_numbered_rounded,
+                      label: 'المنجز',
+                      value: '${fmtNum(report.units)} $unitLabel',
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    report.hasCompletion
+                        ? _MiniStat(
+                            icon: Icons.workspace_premium_rounded,
+                            label: completionLabel,
+                            value: 'تم',
+                            color: AppColors.gold,
+                          )
+                        : _MiniStat(
+                            icon: Icons.receipt_long_rounded,
+                            label: 'التسجيلات',
+                            value: '${report.entries.length}',
+                            color: AppColors.gold,
+                          ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== شاشة تفاصيل يوم النشاط (متون/قرآن) ====================
+
+class _ActivityDayDetailScreen extends StatelessWidget {
+  final ActivityDayReport report;
+  final String unitLabel;
+  final String completionLabel;
+  final String title;
+
+  const _ActivityDayDetailScreen({
+    required this.report,
+    required this.unitLabel,
+    required this.completionLabel,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final dateText =
+        DateFormat('EEEE، d MMMM y', 'ar').format(report.date);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(report.weekdayLabel),
+            Text(
+              dateText,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.inkSecondary),
+            ),
+          ],
+        ),
+      ),
+      body: WatermarkedBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          children: [
+            // ===== ملخص النشاط =====
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${report.studentsCount} طلاب • المنجز: ${fmtNum(report.units)} $unitLabel',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ===== سجلات الطلاب =====
+            const SectionHeader(
+              title: 'سجلات الطلاب',
+              subtitle: 'من / إلى • العدد • الملاحظات',
+            ),
+            for (final entry in report.entries)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(
+                    color: entry.completesTotal
+                        ? AppColors.goldSoft
+                        : AppColors.lineSoft,
+                    width: entry.completesTotal ? 1.4 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        InitialAvatar(name: entry.studentName, radius: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(entry.studentName,
+                              style: textTheme.titleSmall),
+                        ),
+                        if (entry.completesTotal)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              gradient: AppColors.goldGradient,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              completionLabel,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(Icons.linear_scale_rounded,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'من ${fmtNum(entry.from)} إلى ${fmtNum(entry.to)}'
+                            ' (${fmtNum(entry.count)} $unitLabel)',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (entry.notes != null &&
+                        entry.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Row(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.notes_rounded,
+                                size: 15, color: AppColors.inkMuted),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                entry.notes!,
+                                style: textTheme.bodySmall?.copyWith(
+                                    color: AppColors.inkSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة فترة النشاط (أسبوع/شهر) — بلا PDF ====================
+
+class _ActivityPeriodCardTile extends StatelessWidget {
+  final PeriodCard period;
+  final IconData icon;
+  final List<ActivityDayReport> days;
+  final String unitLabel;
+  final String completionLabel;
+  final String title;
+
+  const _ActivityPeriodCardTile({
+    required this.period,
+    required this.icon,
+    required this.days,
+    required this.unitLabel,
+    required this.completionLabel,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final report = period.report;
+    final attendancePct = report.attendanceRates.values.isEmpty
+        ? 0
+        : (report.attendanceRates.values.fold(0.0, (s, v) => s + v) /
+                report.attendanceRates.length *
+                100)
+            .round();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: period.isCurrent
+              ? AppColors.gold
+              : AppColors.lineSoft,
+          width: period.isCurrent ? 1.6 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ActivityPeriodDetailScreen(
+                  period: period,
+                  days: days,
+                  unitLabel: unitLabel,
+                  completionLabel: completionLabel,
+                  title: title,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: period.isCurrent
+                        ? AppColors.goldSurface
+                        : AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: period.isCurrent
+                        ? AppColors.goldDark
+                        : AppColors.primary,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(period.title,
+                                style: textTheme.titleSmall),
+                          ),
+                          if (period.isCurrent) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                gradient: AppColors.goldGradient,
+                                borderRadius:
+                                    BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'جديد',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(period.subtitle,
+                          style: textTheme.bodySmall),
+                      const SizedBox(height: 5),
+                      Text(
+                        'المنجز: ${fmtNum(report.unitsAccomplished)} $unitLabel • الحضور: $attendancePct%',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 13,
+                    color: AppColors.inkMuted
+                        .withValues(alpha: 0.6)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== شاشة تفاصيل فترة النشاط (أسبوع/شهر) ====================
+
+class _ActivityPeriodDetailScreen extends StatelessWidget {
+  final PeriodCard period;
+  final List<ActivityDayReport> days;
+  final String unitLabel;
+  final String completionLabel;
+  final String title;
+
+  const _ActivityPeriodDetailScreen({
+    required this.period,
+    required this.days,
+    required this.unitLabel,
+    required this.completionLabel,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start =
+        DateTime(period.start.year, period.start.month, period.start.day);
+    final end = DateTime(period.end.year, period.end.month, period.end.day);
+    final periodDays = days
+        .where((r) => !r.date.isBefore(start) && !r.date.isAfter(end))
+        .toList();
+
+    final isWeek = period.id.startsWith('week');
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(period.title),
+            Text(
+              period.subtitle,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.inkSecondary),
+            ),
+          ],
+        ),
+      ),
+      body: WatermarkedBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          children: [
+            // ===== التقارير اليومية للفترة =====
+            const SectionHeader(
+              title: 'التقارير اليومية',
+              subtitle: 'اضغط على أي يوم لعرض تفاصيله',
+            ),
+            if (periodDays.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: const Text(
+                  'لا توجد تسجيلات يومية في هذه الفترة',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.inkMuted),
+                ),
+              )
+            else
+              for (final report in periodDays)
+                _ActivityDayCard(
+                  report: report,
+                  unitLabel: unitLabel,
+                  completionLabel: completionLabel,
+                  title: title,
+                  isToday: DateUtils.isSameDay(
+                      report.date, DateTime.now()),
+                ),
+
+            // ===== ملخص الفترة في النهاية =====
+            const SizedBox(height: 16),
+            SectionHeader(
+              title: isWeek ? 'ملخص الأسبوع' : 'ملخص الشهر',
+              subtitle: 'المنجز + نسب المشاركة',
+            ),
+            _ActivityPeriodSummaryCard(
+              period: period,
+              unitLabel: unitLabel,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== بطاقة ملخص فترة النشاط ====================
+
+class _ActivityPeriodSummaryCard extends StatelessWidget {
+  final PeriodCard period;
+  final String unitLabel;
+
+  const _ActivityPeriodSummaryCard({
+    required this.period,
+    required this.unitLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final report = period.report;
+    final rates = report.attendanceRates.entries.toList();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.goldSoft, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.1),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس الملخص
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: AppColors.goldGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.insights_rounded,
+                    color: Colors.white, size: 23),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(period.title, style: textTheme.titleSmall),
+                    Text(period.subtitle, style: textTheme.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // المنجز
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.format_list_numbered_rounded,
+                    color: AppColors.primaryDark, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'المنجز خلال الفترة',
+                    style: textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Text(
+                  '${fmtNum(report.unitsAccomplished)} $unitLabel',
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // عدد التسجيلات
+          Row(
+            children: [
+              Text(
+                'عدد التسجيلات',
+                style: textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              Text(
+                '${report.recordingsCount}',
+                style: const TextStyle(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+
+          // نسب مشاركة الطلاب
+          if (rates.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('نسبة مشاركة الطلاب خلال الفترة',
                 style: textTheme.titleSmall),
             const SizedBox(height: 10),
             for (final entry in rates)

@@ -451,21 +451,26 @@ class _TeacherCard extends StatelessWidget {
         showErrorSnackBar(context, result.errorMessage!);
       }
     } else if (action == 'reset') {
-      final confirmed = await showConfirmDialog(
-        context,
-        title: 'إعادة تعيين كلمة المرور',
-        message:
-            'سيتم إرسال رابط إعادة تعيين كلمة المرور إلى:\n${teacher.email}',
-        confirmLabel: 'إرسال الرابط',
+      final newPassword = await showDialog<String>(
+        context: context,
+        builder: (_) => _ResetPasswordDialog(teacherName: teacher.name),
       );
-      if (!confirmed || !context.mounted) return;
+      if (newPassword == null || newPassword.isEmpty || !context.mounted) {
+        return;
+      }
 
-      final result = await service.sendPasswordReset(teacher.email);
+      final result = await service.resetTeacherPassword(
+        uid: teacher.uid,
+        newPassword: newPassword,
+      );
       if (!context.mounted) return;
 
       if (result.success) {
         showSuccessSnackBar(
-            context, 'تم إرسال رابط إعادة التعيين إلى ${teacher.email}');
+          context,
+          'تم تعيين كلمة المرور الجديدة للمعلم "${teacher.name}".\n'
+          'أبلغه بها ليتمكن من تسجيل الدخول.',
+        );
       } else {
         showErrorSnackBar(context, result.errorMessage!);
       }
@@ -783,6 +788,130 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+// ==================== حوار إعادة تعيين كلمة المرور ====================
+
+class _ResetPasswordDialog extends StatefulWidget {
+  final String teacherName;
+
+  const _ResetPasswordDialog({required this.teacherName});
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(context, _passwordController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.lock_reset_rounded, color: AppColors.primary),
+          const SizedBox(width: 8),
+          const Text('إعادة تعيين كلمة المرور'),
+        ],
+      ),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ضع كلمة المرور الجديدة للمعلم "${widget.teacherName}"،\n'
+              'ثم أبلغه بها ليتمكن من تسجيل الدخول.',
+              style: TextStyle(color: AppColors.inkSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              textDirection: ui.TextDirection.ltr,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'كلمة المرور الجديدة',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'كلمة المرور مطلوبة';
+                }
+                if (v.trim().length < 8) {
+                  return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _confirmController,
+              obscureText: _obscureConfirm,
+              textDirection: ui.TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: 'تأكيد كلمة المرور',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureConfirm
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'تأكيد كلمة المرور مطلوب';
+                }
+                if (v.trim() != _passwordController.text.trim()) {
+                  return 'كلمتا المرور غير متطابقتين';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('حفظ كلمة المرور'),
+        ),
+      ],
     );
   }
 }
