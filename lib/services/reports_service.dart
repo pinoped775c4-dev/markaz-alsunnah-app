@@ -1,10 +1,107 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
+import 'package:intl/intl.dart';
 
 import '../models/lesson.dart';
 import '../models/matna.dart';
 import '../models/quran.dart';
+import '../models/student.dart';
 
 // ==================== نماذج التقارير ====================
+
+/// فاصل مُوحّد لأنشطة الطالب الثلاثة (درس/متن/قرآن) في شاشة تقرير الطالب
+enum StudentActivityKind { lesson, matn, quran }
+
+extension StudentActivityKindX on StudentActivityKind {
+  String get label => switch (this) {
+        StudentActivityKind.lesson => 'الدرس',
+        StudentActivityKind.matn => 'متن',
+        StudentActivityKind.quran => 'قرآن',
+      };
+
+  IconData get icon => switch (this) {
+        StudentActivityKind.lesson => Icons.auto_stories_outlined,
+        StudentActivityKind.matn => Icons.article_outlined,
+        StudentActivityKind.quran => Icons.menu_book_outlined,
+      };
+}
+
+/// عنصر نشاط واحد في تقرير الطالب (تسجيل درس/متن/قرآن في يوم محدد)
+class StudentActivityEntry {
+  final StudentActivityKind kind;
+  final String title; // اسم الدرس أو المتن أو "ورد القرآن الكريم"
+  final DateTime date;
+  final String weekdayLabel;
+  final double from;
+  final double to;
+  final double count;
+  final String? notes;
+  final bool wasPresent; // للدروس: هل حضر الطالب يوم التسجيل؟
+  final double completionBase; // إجمالي وحدات الدرس/المتن (0 للقرآن)
+
+  const StudentActivityEntry({
+    required this.kind,
+    required this.title,
+    required this.date,
+    required this.weekdayLabel,
+    required this.from,
+    required this.to,
+    required this.count,
+    this.notes,
+    this.wasPresent = true,
+    this.completionBase = 0,
+  });
+
+  DateTime get day => DateTime(date.year, date.month, date.day);
+}
+
+/// تقرير طالب واحد مجمّع (دروس حضور + متون + قرآن) — المهمة 3
+class StudentReport {
+  final Student student;
+  final List<StudentActivityEntry> activities; // الأحدث أولاً
+
+  const StudentReport({
+    required this.student,
+    required this.activities,
+  });
+
+  bool get isEmpty => activities.isEmpty;
+
+  double get lessonUnits => _sumFor(StudentActivityKind.lesson);
+  double get matnUnits => _sumFor(StudentActivityKind.matn);
+  double get quranPages => _sumFor(StudentActivityKind.quran);
+
+  double _sumFor(StudentActivityKind kind) => activities
+      .where((a) => a.kind == kind)
+      .fold(0.0, (s, a) => s + a.count);
+
+  /// نسبة حضور الطالب في الدروس = أيام حضوره / أيام تسجيل الدروس
+  int get lessonDays => activities
+      .where((a) => a.kind == StudentActivityKind.lesson)
+      .length;
+  int get lessonPresentDays => activities
+      .where((a) => a.kind == StudentActivityKind.lesson && a.wasPresent)
+      .length;
+  double get attendanceRate =>
+      lessonDays > 0 ? lessonPresentDays / lessonDays : 0;
+
+  /// آخر يوم نشاط للطالب (أو null إن لم يوجد)
+  DateTime? get lastActivityDay =>
+      activities.isEmpty ? null : activities.first.day;
+
+  /// أيام نشاط الطالب (أيام الدروس التي ظهر فيها ضمن التسجيلات)
+  List<StudentActivityEntry> get lessonEntries => activities
+      .where((a) => a.kind == StudentActivityKind.lesson)
+      .toList(growable: false);
+}
+
+/// يوم "غائب المعلم" — المهمة 4
+class TeacherAbsence {
+  final DateTime date;
+  final String weekdayLabel;
+
+  const TeacherAbsence({required this.date, required this.weekdayLabel});
+}
 
 /// تقرير يومي مجمّع لمعلم واحد (جميع الأنشطة في يوم محدد)
 class TeacherDayReport {
@@ -858,5 +955,207 @@ class ReportsService {
     }
 
     return (weeks: weeks, months: months);
+  }
+
+  // ================= تقرير طالب واحد (المهمة 3) =================
+
+  ///
+  /// يجمع نشاط الطالب من المصادر الثلاثة:
+  /// - الدروس: حضور/غياب + الوحدات التي وصل إليها الدرس يومها
+  /// - المتون: تسجيلات الطالب في كل متون المعلم
+  /// - القرآن: أوراد الطالب
+  ///
+  /// كل استعلام بشرط where واحد فقط (studentId أو teacherId) —
+  /// الفلترة على pathwayId تتم محليًا لتفادي الفهارس المركّبة.
+  Future<StudentReport> buildStudentReport(Student student) async {
+    final results = await Future.wait([
+      // حضور الطالب في دروس المعلم
+      _firestore
+          .collection('attendance')
+          .where('teacherId', isEqualTo: student.teacherId)
+          .get(),
+      // تسجيلات دروس المعلم (لربط الحضور بأيام الدرس)
+      _firestore
+          .collection('lesson_recordings')
+          .where('teacherId', isEqualTo: student.teacherId)
+          .get(),
+      // متون المعلم + تسجيلات متون الطالب
+      _firestore.collection('mutun').get(),
+      _firestore
+          .collection('mutun_recordings')
+          .where('studentId', isEqualTo: student.id)
+          .get(),
+      // أوراد قرآن الطالب
+      _firestore
+          .collection('quran_recordings')
+          .where('studentId', isEqualTo: student.id)
+          .get(),
+    ]);
+
+    // ===== دروس المعلم في مسار الطالب فقط =====
+    final lessonsOfPathway = <String, LessonRecording>{};
+    final lessonNames = <String, String>{};
+    final lessonTotals = <String, int>{};
+    for (final d in results[1].docs) {
+      final rec = LessonRecording.fromFirestore(d);
+      if (rec.pathwayId != student.pathwayId) continue;
+      lessonsOfPathway[rec.id] = rec;
+    }
+    for (final d in results[1].docs) {
+      final data = d.data();
+      if (data['pathwayId'] != student.pathwayId) continue;
+      lessonNames[d.id] = (data['lessonName'] as String?) ?? 'الدرس';
+      lessonTotals[d.id] = (data['totalCount'] as num?)?.toInt() ?? 0;
+    }
+    // أسماء الدروس من مجموعة lessons مباشرة (الأدق)
+    try {
+      final lessonsSnap = await _firestore
+          .collection('lessons')
+          .where('teacherId', isEqualTo: student.teacherId)
+          .get();
+      for (final d in lessonsSnap.docs) {
+        if (d.data()['pathwayId'] != student.pathwayId) continue;
+        lessonNames[d.id] = (d.data()['name'] as String?) ?? 'الدرس';
+        lessonTotals[d.id] =
+            ((d.data()['totalCount'] as num?)?.toInt() ?? 0);
+      }
+    } catch (_) {
+      // أسماء الدروس احتياطية فقط — لا تُفشل التقرير
+    }
+
+    // ===== حضور الطالب في أيام الدروس (درس واحد لكل تسجيل) =====
+    final activities = <StudentActivityEntry>[];
+    for (final doc in results[0].docs) {
+      final data = doc.data();
+      if (data['pathwayId'] != student.pathwayId) continue;
+      final presentIds =
+          (data['presentStudentIds'] as List?)?.map((e) => e.toString());
+      final absentIds =
+          (data['absentStudentIds'] as List?)?.map((e) => e.toString());
+      final isPresent =
+          presentIds?.contains(student.id) ?? false;
+      final isAbsent = absentIds?.contains(student.id) ?? false;
+      if (!isPresent && !isAbsent) continue; // الطالب ليس في هذا اليوم
+
+      final recId = data['recordingId'] as String?;
+      final LessonRecording? rec =
+          recId != null ? lessonsOfPathway[recId] : null;
+      if (rec == null) continue;
+
+      activities.add(StudentActivityEntry(
+        kind: StudentActivityKind.lesson,
+        title: lessonNames[rec.lessonId] ?? 'الدرس',
+        date: rec.date,
+        weekdayLabel: DateFormat('EEEE', 'ar').format(rec.date),
+        from: rec.from,
+        to: rec.to,
+        count: rec.count,
+        wasPresent: isPresent,
+        completionBase: (lessonTotals[rec.lessonId] ?? 0).toDouble(),
+      ));
+    }
+
+    // ===== متون الطالب =====
+    final matnaById = <String, Matna>{};
+    for (final d in results[2].docs) {
+      final data = d.data();
+      if (data['teacherId'] != student.teacherId) continue;
+      if (data['pathwayId'] != student.pathwayId) continue;
+      matnaById[d.id] = Matna.fromFirestore(d);
+    }
+    for (final d in results[3].docs) {
+      final rec = MutunRecording.fromFirestore(d);
+      final matna = matnaById[rec.matnaId];
+      if (matna == null) continue;
+      activities.add(StudentActivityEntry(
+        kind: StudentActivityKind.matn,
+        title: matna.name,
+        date: rec.date,
+        weekdayLabel: DateFormat('EEEE', 'ar').format(rec.date),
+        from: rec.from,
+        to: rec.to,
+        count: rec.count,
+        notes: rec.notes,
+        completionBase: matna.totalCount.toDouble(),
+      ));
+    }
+
+    // ===== قرآن الطالب =====
+    for (final d in results[4].docs) {
+      final rec = QuranRecording.fromFirestore(d);
+      if (rec.pathwayId != student.pathwayId) continue;
+      activities.add(StudentActivityEntry(
+        kind: StudentActivityKind.quran,
+        title: 'ورد القرآن الكريم',
+        date: rec.date,
+        weekdayLabel: DateFormat('EEEE', 'ar').format(rec.date),
+        from: rec.fromPage,
+        to: rec.toPage,
+        count: rec.count,
+        notes: rec.notes,
+      ));
+    }
+
+    // الأحدث أولاً
+    activities.sort((a, b) => b.date.compareTo(a.date));
+
+    return StudentReport(student: student, activities: activities);
+  }
+
+  // ================= أيام غياب المعلم (المهمة 4) =================
+
+  ///
+  /// الأيام التي كان على المعلم أن يسجّل فيها درسه ولم يفعل:
+  /// أيام الدروس المتوقعة (المستخرجة من نمط أيام التسجيلات السابقة)
+  /// التي انقضت بين أول تسجيل وأمس، ولا يوجد فيها تسجيل.
+  ///
+  /// المنطق: نجمع أيام الأسبوع التي سجّل المعلم فيها دروسًا سابقًا
+  /// (نمط الحصص)، ثم نفحص كل يوم منعقد منذ أول تسجيل وحتى أمس؛
+  /// إن كان يوم نمطٍ معروف ولا تسجيل فيه فهو "غائب المعلم".
+  Future<List<TeacherAbsence>> buildTeacherAbsenceDays({
+    required String teacherId,
+    required String pathwayId,
+    String? lessonId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('lesson_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .get();
+
+    final recordings = snapshot.docs
+        .map((d) => LessonRecording.fromFirestore(d))
+        .where((r) => r.pathwayId == pathwayId)
+        .where((r) => lessonId == null || r.lessonId == lessonId)
+        .toList();
+
+    if (recordings.isEmpty) return const [];
+
+    // أيام الأسبوع التي جرى فيها تسجيل (نمط حصص المعلم)
+    final patternWeekdays = recordings.map((r) => r.date.weekday).toSet();
+
+    // أول تسجيل → أمس
+    recordings.sort((a, b) => a.date.compareTo(b.date));
+    final first = _dayOnly(recordings.first.date);
+    final yesterday = _dayOnly(DateTime.now())
+        .subtract(const Duration(days: 1));
+
+    // الأيام المسجّلة فعليًا
+    final recordedDays = recordings.map((r) => _dayOnly(r.date)).toSet();
+
+    final absences = <TeacherAbsence>[];
+    var cursor = first;
+    while (!cursor.isAfter(yesterday)) {
+      if (patternWeekdays.contains(cursor.weekday) &&
+          !recordedDays.contains(cursor)) {
+        absences.add(TeacherAbsence(
+          date: cursor,
+          weekdayLabel: DateFormat('EEEE', 'ar').format(cursor),
+        ));
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
+
+    // الأحدث أولاً
+    return absences.reversed.toList();
   }
 }
