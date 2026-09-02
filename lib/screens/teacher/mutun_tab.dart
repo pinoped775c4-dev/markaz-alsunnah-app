@@ -649,8 +649,8 @@ class _StudentMatnaCard extends StatelessWidget {
   });
 
   /// آخر نقطة وصل إليها الطالب (أكبر "إلى")
-  int get _lastReached =>
-      recordings.fold(0, (max, r) => r.to > max ? r.to : max);
+  double get _lastReached =>
+      recordings.fold(0.0, (max, r) => r.to > max ? r.to : max);
 
   double get _progress => matna.totalCount > 0
       ? (_lastReached / matna.totalCount).clamp(0.0, 1.0)
@@ -701,7 +701,7 @@ class _StudentMatnaCard extends StatelessWidget {
                     ? 'أتمّ المتن كاملاً 🎉'
                     : recordings.isEmpty
                         ? 'لم يبدأ بعد'
-                        : 'وصل إلى ${matna.unitLabel} $_lastReached من ${matna.totalCount} (${(_progress * 100).round()}%)',
+                        : 'وصل إلى ${matna.unitLabel} ${fmtNum(_lastReached)} من ${matna.totalCount} (${(_progress * 100).round()}%)',
                 style: textTheme.bodySmall?.copyWith(
                   color: _completed
                       ? AppColors.goldDark
@@ -882,7 +882,7 @@ class _AddMutunRecordingDialog extends StatefulWidget {
   final Matna matna;
   final Student student;
   final MutunService service;
-  final int suggestedFrom;
+  final double suggestedFrom;
 
   const _AddMutunRecordingDialog({
     required this.matna,
@@ -911,7 +911,7 @@ class _AddMutunRecordingDialogState
   void initState() {
     super.initState();
     if (widget.suggestedFrom <= widget.matna.totalCount) {
-      _fromController.text = '${widget.suggestedFrom}';
+      _fromController.text = fmtNum(widget.suggestedFrom);
     }
   }
 

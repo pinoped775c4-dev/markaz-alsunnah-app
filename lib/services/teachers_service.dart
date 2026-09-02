@@ -201,16 +201,29 @@ class TeachersService {
 
   // ================= إعادة تعيين كلمة المرور =================
 
-  Future<TeacherOpResult> sendPasswordReset(String email) async {
-    try {
-      await FirebaseAuth.instance
-          .sendPasswordResetEmail(email: email.trim());
-      return const TeacherOpResult.ok();
-    } on FirebaseAuthException catch (e) {
-      return TeacherOpResult.fail(_mapError(e));
-    } catch (e) {
+  /// إعادة تعيين كلمة المرور من قِبل المدير مباشرة:
+  /// تُخزن ككلمة مرور مؤقتة في ملف المستخدم (users) — لأن حسابات
+  /// Firebase Auth لا يمكن تعديل كلمة مرورها إلا من صاحبها.
+  /// عند تسجيل الدخول: إذا فشل دخول Firebase Auth بنجاح، يفحص
+  /// التطبيق كلمة المرور المؤقتة هذه ويمنح جلسة افتراضية.
+  Future<TeacherOpResult> resetTeacherPassword({
+    required String uid,
+    required String newPassword,
+  }) async {
+    if (newPassword.trim().length < 8) {
       return const TeacherOpResult.fail(
-          'فشل إرسال رابط إعادة التعيين، حاول مرة أخرى');
+          'كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+    }
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'tempPassword': newPassword.trim(),
+        'passwordUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      return const TeacherOpResult.ok();
+    } catch (e) {
+      debugPrint('TeachersService.resetTeacherPassword error: $e');
+      return const TeacherOpResult.fail(
+          'فشل حفظ كلمة المرور الجديدة، تحقق من الإنترنت وحاول مرة أخرى');
     }
   }
 

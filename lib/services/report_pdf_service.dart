@@ -126,7 +126,7 @@ class ReportPdfService {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                _summaryStat('المنجز', '${report.unitsAccomplished} ${lesson.unitLabel}'),
+                _summaryStat('المنجز', '${fmtNum(report.unitsAccomplished)} ${lesson.unitLabel}'),
                 _summaryStat('أيام التسجيل', '${report.recordingsCount}'),
                 _summaryStat('متوسط الحضور', '$attendancePct%'),
                 _summaryStat('نسبة الإنجاز', '${(report.completionRate * 100).round()}%'),

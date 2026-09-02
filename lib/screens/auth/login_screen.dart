@@ -64,43 +64,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _forgotPassword() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() {
-        _errorMessage =
-            'أدخل بريدك الإلكتروني أولاً ثم اضغط "نسيت كلمة المرور"';
-      });
-      return;
-    }
-
-    final auth = context.read<AuthService>();
-    final error = await auth.sendPasswordResetEmail(email);
-
-    if (!mounted) return;
-
-    if (error == null) {
-      setState(() => _errorMessage = null);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle_rounded,
-                    color: Colors.white, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                      'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني'),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-          ),
-        );
-    } else {
-      setState(() => _errorMessage = error);
-    }
+    // إعادة تعيين كلمة المرور تتم من قِبل إدارة المركز فقط
+    setState(() => _errorMessage = null);
+    _showContactAdminDialog();
   }
 
   void _showContactAdminDialog() {

@@ -108,10 +108,72 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return AuthResult.success(profile);
     } on FirebaseAuthException catch (e) {
+      // سلسلة الدخول البديلة: كلمة مرور مؤقتة وضعها المدير
+      // (تُخزن في ملف users لأن كلمة مرور Firebase Auth لا تعدَّل
+      // إلا من صاحبها). نطابقها هنا ونبني جلسة من ملف Firestore.
+      final tempResult = await _tryTempPasswordLogin(email.trim(), password);
+      if (tempResult != null) return tempResult;
+
       return AuthResult.failure(_mapAuthError(e));
     } catch (e) {
       debugPrint('AuthService.signIn error: $e');
       return const AuthResult.failure('حدث خطأ في الاتصال، تحقق من الإنترنت وحاول مرة أخرى');
+    }
+  }
+
+  /// محاولة دخول بكلمة المرور المؤقتة التي وضعها المدير.
+  /// تعيد نتيجة دخول إذا طابقت، أو null إن لم تطابق (ليست كلمة مؤقتة).
+  Future<AuthResult?> _tryTempPasswordLogin(
+      String email, String password) async {
+    try {
+      // استعلام واحد بسيط على البريد (لا فهارس مركبة)
+      final snapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase())
+          .get();
+
+      // إن لم يُعثر على البريد بأي صيغة، جرّب كما كتبه المستخدم
+      var docs = snapshot.docs;
+      if (docs.isEmpty) {
+        final snapshot2 = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .get();
+        docs = snapshot2.docs;
+      }
+
+      if (docs.isEmpty) return null;
+
+      final data = docs.first.data();
+      final storedTemp = data['tempPassword'] as String?;
+      if (storedTemp == null || storedTemp.isEmpty) return null;
+      if (storedTemp != password) return null;
+
+      // كلمة المرور المؤقتة صحيحة — بناء الجلسة من ملف Firestore
+      final profile = AppUser(
+        uid: docs.first.id,
+        role: (data['role'] as String?) ?? 'teacher',
+        name: (data['name'] as String?) ?? '',
+        email: (data['email'] as String?) ?? '',
+        status: (data['status'] as String?) ?? 'active',
+        specialization: data['specialization'] as String?,
+        phone: data['phone'] as String?,
+        photoBase64: data['photoBase64'] as String?,
+        createdBy: data['createdBy'] as String?,
+        createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      );
+      if (!profile.isActive) {
+        return const AuthResult.failure(
+          'هذا الحساب معطّل. تواصل مع إدارة المركز لتفعيله.',
+        );
+      }
+
+      _currentUser = profile;
+      notifyListeners();
+      return AuthResult.success(profile);
+    } catch (e) {
+      debugPrint('AuthService._tryTempPasswordLogin error: $e');
+      return null;
     }
   }
 

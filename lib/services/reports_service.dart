@@ -27,12 +27,12 @@ class TeacherDayReport {
       mutunRecordings.isEmpty &&
       quranRecordings.isEmpty;
 
-  int get totalLessonUnits =>
-      lessonRecordings.fold(0, (s, r) => s + r.count);
-  int get totalMutunUnits =>
-      mutunRecordings.fold(0, (s, r) => s + r.count);
-  int get totalQuranPages =>
-      quranRecordings.fold(0, (s, r) => s + r.count);
+  double get totalLessonUnits =>
+      lessonRecordings.fold(0.0, (s, r) => s + r.count);
+  double get totalMutunUnits =>
+      mutunRecordings.fold(0.0, (s, r) => s + r.count);
+  double get totalQuranPages =>
+      quranRecordings.fold(0.0, (s, r) => s + r.count);
   int get totalActivity =>
       lessonRecordings.length +
       mutunRecordings.length +
@@ -74,7 +74,7 @@ class PeriodReport {
   final DateTime end;
 
   /// وحدات (أبيات/صفحات) المنجزة خلال الفترة
-  final int unitsAccomplished;
+  final double unitsAccomplished;
   final int recordingsCount;
 
   /// نسبة الحضور لكل طالب خلال الفترة
@@ -249,7 +249,7 @@ class ReportsService {
       return !d.isBefore(_dayOnly(start)) && !d.isAfter(_dayOnly(end));
     }).toList();
 
-    final units = inPeriod.fold(0, (s, r) => s + r.recording.count);
+    final units = inPeriod.fold(0.0, (s, r) => s + r.recording.count);
 
     // نسبة حضور كل طالب = (أيام حضوره الفعلية) / (أيام ظهوره في السجلات)
     final presentDays = <String, int>{};

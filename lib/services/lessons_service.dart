@@ -99,12 +99,12 @@ class LessonsService {
       ]);
 
       // تسجيلات الدرس فقط (فلترة محلية لتفادي الفهرس المركب)
-      final recordingDocs = (results[0] as QuerySnapshot<Map<String, dynamic>>)
+      final recordingDocs = results[0]
           .docs
           .where((d) => d.data()['lessonId'] == lesson.id)
           .toList();
       final attendanceDocs =
-          (results[1] as QuerySnapshot<Map<String, dynamic>>).docs;
+          results[1].docs;
 
       // حذف بالدفعات (حد Firestore: 500 عملية للدفعية)
       final batches = <WriteBatch>[_firestore.batch()];

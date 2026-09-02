@@ -1078,7 +1078,7 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
                           style: textTheme.bodySmall),
                       const SizedBox(height: 5),
                       Text(
-                        'المنجز: ${report.unitsAccomplished} وحدة • الحضور: $attendancePct%',
+                        'المنجز: ${fmtNum(report.unitsAccomplished)} وحدة • الحضور: $attendancePct%',
                         style: textTheme.bodySmall?.copyWith(
                           color: AppColors.primaryDark,
                           fontWeight: FontWeight.w600,
@@ -1666,7 +1666,7 @@ class _PeriodSummaryCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${report.unitsAccomplished} ${lesson.unitLabel}',
+                  '${fmtNum(report.unitsAccomplished)} ${lesson.unitLabel}',
                   style: const TextStyle(
                     color: AppColors.primaryDark,
                     fontWeight: FontWeight.bold,

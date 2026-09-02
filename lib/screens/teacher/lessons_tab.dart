@@ -940,7 +940,7 @@ class _PeriodListTile extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text(
           '${df.format(card.start)} – ${df.format(card.end)} • '
-          '${card.report.unitsAccomplished} ${'منجز'}',
+          '${fmtNum(card.report.unitsAccomplished)} ${'منجز'}',
           style: const TextStyle(fontSize: 11.5),
         ),
         trailing: card.isCurrent
