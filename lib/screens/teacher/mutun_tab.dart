@@ -780,7 +780,7 @@ class _StudentMatnaCard extends StatelessWidget {
       context,
       title: 'حذف التسجيل',
       message:
-          'سيتم حذف تسجيل ${r.weekday} (${r.count} ${matna.unitLabel}).\nهل أنت متأكد؟',
+          'سيتم حذف تسجيل ${r.weekday} (${fmtNum(r.count)} ${matna.unitLabel}).\nهل أنت متأكد؟',
       confirmLabel: 'حذف',
       isDestructive: true,
     );
@@ -839,7 +839,7 @@ class _RecordingTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'من ${recording.from} إلى ${recording.to} (${recording.count} $unitLabel)',
+                  'من ${fmtNum(recording.from)} إلى ${fmtNum(recording.to)} (${fmtNum(recording.count)} $unitLabel)',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.inkSecondary,
@@ -923,9 +923,9 @@ class _AddMutunRecordingDialogState
     super.dispose();
   }
 
-  int? get _autoCount {
-    final from = int.tryParse(_fromController.text.trim());
-    final to = int.tryParse(_toController.text.trim());
+  double? get _autoCount {
+    final from = double.tryParse(_fromController.text.trim());
+    final to = double.tryParse(_toController.text.trim());
     if (from == null || to == null || to < from) return null;
     return to - from + 1;
   }
@@ -944,8 +944,8 @@ class _AddMutunRecordingDialogState
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final from = int.parse(_fromController.text.trim());
-    final to = int.parse(_toController.text.trim());
+    final from = double.parse(_fromController.text.trim());
+    final to = double.parse(_toController.text.trim());
 
     if (to > widget.matna.totalCount) {
       setState(() => _errorMessage =
@@ -1077,7 +1077,8 @@ class _AddMutunRecordingDialogState
                     Expanded(
                       child: TextFormField(
                         controller: _fromController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: InputDecoration(
                           labelText:
                               'من (${widget.matna.unitLabel}) *',
@@ -1085,7 +1086,7 @@ class _AddMutunRecordingDialogState
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
                           final n =
-                              int.tryParse(v?.trim() ?? '');
+                              double.tryParse(v?.trim() ?? '');
                           if (n == null || n < 1) {
                             return 'أدخل رقماً صحيحاً';
                           }
@@ -1097,7 +1098,8 @@ class _AddMutunRecordingDialogState
                     Expanded(
                       child: TextFormField(
                         controller: _toController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: InputDecoration(
                           labelText:
                               'إلى (${widget.matna.unitLabel}) *',
@@ -1105,11 +1107,11 @@ class _AddMutunRecordingDialogState
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
                           final n =
-                              int.tryParse(v?.trim() ?? '');
+                              double.tryParse(v?.trim() ?? '');
                           if (n == null || n < 1) {
                             return 'أدخل رقماً صحيحاً';
                           }
-                          final from = int.tryParse(
+                          final from = double.tryParse(
                               _fromController.text.trim());
                           if (from != null && n < from) {
                             return 'أقل من "من"';

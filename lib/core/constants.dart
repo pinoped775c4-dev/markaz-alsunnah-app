@@ -115,3 +115,11 @@ class PathwayInfo {
       ? const ['القرآن']
       : const ['الطلاب', 'الدروس', 'المتون', 'القرآن'];
 }
+
+/// تنسيق رقم عشري لعرض عربي نظيف: يُخفي ".0" إذا كان العدد صحيحاً
+String fmtNum(double v) {
+  if (v == v.roundToDouble()) return v.round().toString();
+  // نقتطع لأقرب 4 خانات عشرية لإزالة ضجيج الفواصل العائمة
+  final r = double.parse(v.toStringAsFixed(4));
+  return r == r.roundToDouble() ? r.round().toString() : r.toString();
+}

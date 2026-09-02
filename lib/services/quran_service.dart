@@ -71,8 +71,8 @@ class QuranService {
     required String pathwayId,
     required String studentId,
     required DateTime date,
-    required int fromPage,
-    required int toPage,
+    required double fromPage,
+    required double toPage,
     String? notes,
   }) async {
     // تحقق من نطاق المصحف

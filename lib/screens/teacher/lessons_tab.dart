@@ -1361,8 +1361,8 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
       final e = widget.editing!;
       _selectedDate = e.date;
       _durationController.text = e.duration;
-      _fromController.text = '${e.from}';
-      _toController.text = '${e.to}';
+      _fromController.text = fmtNum(e.from);
+      _toController.text = fmtNum(e.to);
       _notesController.text = e.notes ?? '';
     } else {
       // تعبئة "من" تلقائياً — الترقيم التلقائي للبيوت/الصفحات:
@@ -1378,7 +1378,7 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
   /// إن لم توجد تسجيلات سابقة نبدأ من العداد الحالي + 1.
   Future<void> _prefillFrom() async {
     final lesson = widget.lesson;
-    int nextFrom;
+    double nextFrom;
     try {
       final latest = await widget.lessonsService.fetchLatestRecording(
         teacherId: lesson.teacherId,
@@ -1387,16 +1387,16 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
       if (latest != null && latest.to >= 0) {
         nextFrom = latest.to + 1;
       } else {
-        nextFrom = lesson.completedCount + 1;
+        nextFrom = (lesson.completedCount + 1).toDouble();
       }
     } catch (_) {
-      nextFrom = lesson.completedCount + 1;
+      nextFrom = (lesson.completedCount + 1).toDouble();
     }
     if (!mounted) return;
     // لا نطغى على قيمة كتبها المستخدم أثناء الجلب
     if (_fromController.text.trim().isEmpty && nextFrom > 0) {
       if (nextFrom <= lesson.totalCount || lesson.totalCount <= 0) {
-        setState(() => _fromController.text = '$nextFrom');
+        setState(() => _fromController.text = fmtNum(nextFrom));
       }
     }
   }
@@ -1447,9 +1447,9 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
     super.dispose();
   }
 
-  int? get _autoCount {
-    final from = int.tryParse(_fromController.text.trim());
-    final to = int.tryParse(_toController.text.trim());
+  double? get _autoCount {
+    final from = double.tryParse(_fromController.text.trim());
+    final to = double.tryParse(_toController.text.trim());
     if (from == null || to == null || to < from) return null;
     return to - from + 1;
   }
@@ -1481,8 +1481,8 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final from = int.parse(_fromController.text.trim());
-    final to = int.parse(_toController.text.trim());
+    final from = double.parse(_fromController.text.trim());
+    final to = double.parse(_toController.text.trim());
 
     // تحقق: to لا يتجاوز الإجمالي
     final effectiveTotal = widget.lesson.totalCount;
@@ -1691,13 +1691,14 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _fromController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: InputDecoration(
                           labelText: 'من (${widget.lesson.unitLabel}) *',
                         ),
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
-                          final n = int.tryParse(v?.trim() ?? '');
+                          final n = double.tryParse(v?.trim() ?? '');
                           if (n == null || n <= 0) return 'مطلوب';
                           return null;
                         },
@@ -1707,16 +1708,17 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _toController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: InputDecoration(
                           labelText: 'إلى (${widget.lesson.unitLabel}) *',
                         ),
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
-                          final n = int.tryParse(v?.trim() ?? '');
+                          final n = double.tryParse(v?.trim() ?? '');
                           if (n == null || n <= 0) return 'مطلوب';
                           final from =
-                              int.tryParse(_fromController.text.trim());
+                              double.tryParse(_fromController.text.trim());
                           if (from != null && n < from) {
                             return 'أقل من "من"';
                           }
@@ -1738,7 +1740,7 @@ class _DailyLessonDialogState extends State<_DailyLessonDialog> {
                       child: Column(
                         children: [
                           Text(
-                            count != null ? '$count' : '—',
+                            count != null ? fmtNum(count) : '—',
                             style: textTheme.titleSmall?.copyWith(
                               color: count != null
                                   ? AppColors.primaryDark
@@ -2031,7 +2033,7 @@ class _RecordingCard extends StatelessWidget {
               _MetaChip(
                 icon: Icons.format_list_numbered_rounded,
                 label:
-                    '${recording.from} ← ${recording.to} (${recording.count} ${lesson.unitLabel})',
+                    '${fmtNum(recording.from)} ← ${fmtNum(recording.to)} (${fmtNum(recording.count)} ${lesson.unitLabel})',
               ),
               _MetaChip(
                 icon: Icons.how_to_reg_rounded,
@@ -2068,7 +2070,7 @@ class _RecordingCard extends StatelessWidget {
       context,
       title: 'حذف التسجيل',
       message:
-          'سيتم حذف هذا التسجيل وإرجاع ${recording.count} ${lesson.unitLabel} من العداد.\nهل أنت متأكد؟',
+          'سيتم حذف هذا التسجيل وإرجاع ${fmtNum(recording.count)} ${lesson.unitLabel} من العداد.\nهل أنت متأكد؟',
       confirmLabel: 'حذف',
       isDestructive: true,
     );

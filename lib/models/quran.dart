@@ -10,9 +10,9 @@ class QuranRecording {
   final String studentId;
   final String weekday;
   final DateTime date;
-  final int fromPage; // 1..604
-  final int toPage; // 1..604
-  final int count; // toPage - fromPage + 1
+  final double fromPage; // 1..604
+  final double toPage; // 1..604
+  final double count; // toPage - fromPage + 1
   final String? notes;
   final DateTime? createdAt;
 
@@ -43,9 +43,9 @@ class QuranRecording {
       studentId: (data['studentId'] as String?) ?? '',
       weekday: (data['weekday'] as String?) ?? '',
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      fromPage: (data['fromPage'] as num?)?.toInt() ?? 0,
-      toPage: (data['toPage'] as num?)?.toInt() ?? 0,
-      count: (data['count'] as num?)?.toInt() ?? 0,
+      fromPage: (data['fromPage'] as num?)?.toDouble() ?? 0,
+      toPage: (data['toPage'] as num?)?.toDouble() ?? 0,
+      count: (data['count'] as num?)?.toDouble() ?? 0,
       notes: data['notes'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
@@ -110,7 +110,7 @@ QuranProgressSummary summarizeQuranProgress(
   DateTime? last;
 
   for (final r in recordings) {
-    total += r.count;
+    total += r.count.round();
     if (last == null || r.date.isAfter(last)) last = r.date;
   }
 
@@ -124,7 +124,8 @@ QuranProgressSummary summarizeQuranProgress(
     } else {
       if (r.toPage >= AppConstants.khatmaPages) khatmas++;
       currentPage =
-          r.toPage >= AppConstants.khatmaPages ? 0 : r.toPage;
+          (r.toPage >= AppConstants.khatmaPages ? 0 : r.toPage)
+              .round();
     }
   }
 

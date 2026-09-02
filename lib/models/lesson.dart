@@ -75,9 +75,9 @@ class LessonRecording {
   final String weekday; // يُحسب تلقائياً من التاريخ
   final DateTime date;
   final String duration; // نص حر يكتبه المعلم
-  final int from;
-  final int to;
-  final int count; // to - from + 1
+  final double from;
+  final double to;
+  final double count; // to - from + 1
   final String? notes;
   final int presentCount;
   final int totalStudents;
@@ -111,9 +111,9 @@ class LessonRecording {
       weekday: (data['weekday'] as String?) ?? '',
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       duration: (data['duration'] as String?) ?? '',
-      from: (data['from'] as num?)?.toInt() ?? 0,
-      to: (data['to'] as num?)?.toInt() ?? 0,
-      count: (data['count'] as num?)?.toInt() ?? 0,
+      from: (data['from'] as num?)?.toDouble() ?? 0,
+      to: (data['to'] as num?)?.toDouble() ?? 0,
+      count: (data['count'] as num?)?.toDouble() ?? 0,
       notes: data['notes'] as String?,
       presentCount: (data['presentCount'] as num?)?.toInt() ?? 0,
       totalStudents: (data['totalStudents'] as num?)?.toInt() ?? 0,

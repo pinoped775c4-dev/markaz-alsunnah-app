@@ -173,8 +173,8 @@ class LessonsService {
     required Lesson lesson,
     required DateTime date,
     required String duration,
-    required int from,
-    required int to,
+    required double from,
+    required double to,
     String? notes,
     required List<String> presentStudentIds,
     required List<String> absentStudentIds,
@@ -193,7 +193,7 @@ class LessonsService {
         final lessonRef =
             _firestore.collection('lessons').doc(lesson.id);
         transaction.update(lessonRef, {
-          'completedCount': lesson.completedCount + count,
+          'completedCount': lesson.completedCount + count.round(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
@@ -373,11 +373,11 @@ class LessonsService {
   /// تعديل تسجيل يومي (يُعدّل العداد بالفرق)
   Future<LessonOpResult> updateRecording({
     required LessonRecording recording,
-    required int oldCount,
+    required double oldCount,
     required DateTime date,
     required String duration,
-    required int from,
-    required int to,
+    required double from,
+    required double to,
     String? notes,
     required List<String> presentStudentIds,
     required List<String> absentStudentIds,
@@ -436,7 +436,7 @@ class LessonsService {
           transaction.update(
               _firestore.collection('lessons').doc(recording.lessonId),
               {
-                'completedCount': currentCompleted + diff,
+                'completedCount': currentCompleted + diff.round(),
                 'updatedAt': FieldValue.serverTimestamp(),
               });
         }

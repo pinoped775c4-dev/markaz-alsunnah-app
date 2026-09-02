@@ -1,3 +1,4 @@
+import '../core/constants.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -166,7 +167,7 @@ class ReportPdfService {
                         ? 'لا يوجد'
                         : day.absentNames.join('، '),
                     '${day.presentCount}/${day.totalStudents} (${(day.attendanceRate * 100).round()}%)',
-                    '${day.recording.from} ← ${day.recording.to} (${day.recording.count})',
+                    '${fmtNum(day.recording.from)} ← ${fmtNum(day.recording.to)} (${fmtNum(day.recording.count)})',
                     day.recording.duration,
                     dateFmt.format(day.date),
                   ],

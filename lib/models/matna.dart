@@ -61,9 +61,9 @@ class MutunRecording {
   final String studentId;
   final String weekday;
   final DateTime date;
-  final int from;
-  final int to;
-  final int count; // to - from + 1
+  final double from;
+  final double to;
+  final double count; // to - from + 1
   final String? notes;
   final DateTime? createdAt;
 
@@ -93,9 +93,9 @@ class MutunRecording {
       studentId: (data['studentId'] as String?) ?? '',
       weekday: (data['weekday'] as String?) ?? '',
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      from: (data['from'] as num?)?.toInt() ?? 0,
-      to: (data['to'] as num?)?.toInt() ?? 0,
-      count: (data['count'] as num?)?.toInt() ?? 0,
+      from: (data['from'] as num?)?.toDouble() ?? 0,
+      to: (data['to'] as num?)?.toDouble() ?? 0,
+      count: (data['count'] as num?)?.toDouble() ?? 0,
       notes: data['notes'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );

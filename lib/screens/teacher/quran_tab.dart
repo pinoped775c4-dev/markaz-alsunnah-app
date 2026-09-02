@@ -256,7 +256,7 @@ class _StudentQuranCard extends StatelessWidget {
       context,
       title: 'حذف الورد',
       message:
-          'سيتم حذف ورد ${r.weekday} (${r.count} صفحة).\nهل أنت متأكد؟',
+          'سيتم حذف ورد ${r.weekday} (${fmtNum(r.count)} صفحة).\nهل أنت متأكد؟',
       confirmLabel: 'حذف',
       isDestructive: true,
     );
@@ -336,7 +336,7 @@ class _WardTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'من صفحة ${recording.fromPage} إلى ${recording.toPage} (${recording.count} صفحة)',
+                  'من صفحة ${fmtNum(recording.fromPage)} إلى ${fmtNum(recording.toPage)} (${fmtNum(recording.count)} صفحة)',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.inkSecondary,
@@ -420,15 +420,15 @@ class _AddWardDialogState extends State<_AddWardDialog> {
     super.dispose();
   }
 
-  int? get _autoCount {
-    final from = int.tryParse(_fromController.text.trim());
-    final to = int.tryParse(_toController.text.trim());
+  double? get _autoCount {
+    final from = double.tryParse(_fromController.text.trim());
+    final to = double.tryParse(_toController.text.trim());
     if (from == null || to == null || to < from) return null;
     return to - from + 1;
   }
 
   bool get _isKhatma {
-    final to = int.tryParse(_toController.text.trim());
+    final to = double.tryParse(_toController.text.trim());
     return to != null && to >= AppConstants.khatmaPages;
   }
 
@@ -446,8 +446,8 @@ class _AddWardDialogState extends State<_AddWardDialog> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final from = int.parse(_fromController.text.trim());
-    final to = int.parse(_toController.text.trim());
+    final from = double.parse(_fromController.text.trim());
+    final to = double.parse(_toController.text.trim());
 
     setState(() {
       _isLoading = true;
@@ -576,7 +576,8 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _fromController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: const InputDecoration(
                           labelText: 'من صفحة *',
                           hintText: '1',
@@ -584,7 +585,7 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
                           final n =
-                              int.tryParse(v?.trim() ?? '');
+                              double.tryParse(v?.trim() ?? '');
                           if (n == null ||
                               n < 1 ||
                               n > AppConstants.khatmaPages) {
@@ -598,7 +599,8 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _toController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                         decoration: const InputDecoration(
                           labelText: 'إلى صفحة *',
                           hintText: '${AppConstants.khatmaPages}',
@@ -606,13 +608,13 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                         onChanged: (_) => setState(() {}),
                         validator: (v) {
                           final n =
-                              int.tryParse(v?.trim() ?? '');
+                              double.tryParse(v?.trim() ?? '');
                           if (n == null ||
                               n < 1 ||
                               n > AppConstants.khatmaPages) {
                             return '1–${AppConstants.khatmaPages}';
                           }
-                          final from = int.tryParse(
+                          final from = double.tryParse(
                               _fromController.text.trim());
                           if (from != null && n < from) {
                             return 'أقل من "من"';
@@ -638,8 +640,8 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                     ),
                     child: Text(
                       _isKhatma
-                          ? '🎉 $count صفحة — إتمام ختمة كاملة!'
-                          : 'المقدار: $count صفحة (محسوب تلقائياً)',
+                          ? '🎉 ${fmtNum(count)} صفحة — إتمام ختمة كاملة!'
+                          : 'المقدار: ${fmtNum(count)} صفحة (محسوب تلقائياً)',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _isKhatma

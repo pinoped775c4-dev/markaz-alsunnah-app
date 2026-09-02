@@ -160,8 +160,8 @@ class MutunService {
     required Matna matna,
     required String studentId,
     required DateTime date,
-    required int from,
-    required int to,
+    required double from,
+    required double to,
     String? notes,
   }) async {
     try {

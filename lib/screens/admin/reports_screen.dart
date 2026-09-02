@@ -863,7 +863,7 @@ class _DailyReportCard extends StatelessWidget {
                       icon: Icons.format_list_numbered_rounded,
                       label: 'المنجز',
                       value:
-                          '${report.recording.count} ${lesson.unitLabel}',
+                          '${fmtNum(report.recording.count)} ${lesson.unitLabel}',
                       color: AppColors.primary,
                     ),
                     const SizedBox(width: 10),
@@ -1167,8 +1167,8 @@ class DayDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'من ${report.recording.from} إلى ${report.recording.to}'
-                    ' (${report.recording.count} ${lesson.unitLabel})'
+                    'من ${fmtNum(report.recording.from)} إلى ${fmtNum(report.recording.to)}'
+                    ' (${fmtNum(report.recording.count)} ${lesson.unitLabel})'
                     ' • المدة: ${report.recording.duration}',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
