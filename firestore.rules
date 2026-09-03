@@ -1,0 +1,144 @@
+rules_version = '2';
+
+// =====================================================================
+// قواعد أمان Firestore — مركز السنة للعلوم الشرعية وتأهيل الدعاة
+// =====================================================================
+// ملاحظة نشر مهمة: هذا الملف جاهز للنشر عبر Firebase Console:
+//   Firestore Database -> Rules -> لصق المحتوى -> Publish
+// (Firebase CLI غير موثّق في هذه البيئة — النشر اليدوي عبر Console)
+//
+// الفئات المحمية:
+// 1) app_settings/mutun_wird: القراءة للجميع (المعلمون يحتاجونها
+//    لمعرفة المعلم المسؤول) — الكتابة للمدير فقط.
+// 2) mutun + mutun_recordings + quran_recordings:
+//    - إنشاء سجل رسمي (isOfficial == true): يتطلب أن يكون الكاتب
+//      هو معلم المتون والأوراد المخصص في app_settings/mutun_wird.
+//    - سجل غير رسمي (isOfficial != true) أو قديم (بلا علامة):
+//      متاح لأي معلم — بلا حذف (القاعدة تمنع انتحال الإسناد فقط).
+// 3) بقية المجموعات: كما في القواعد الأصلية (المصادقة مطلوبة،
+//    وملف users يُقرأ/يُكتب لصاحبه).
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================== دوال مساعدة ====================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && userDoc().data.role == 'admin';
+    }
+
+    // معلم المتون والأوراد المخصص في app_settings/mutun_wird
+    function mutunWirdDoc() {
+      return get(/databases/$(database)/documents/app_settings/mutun_wird);
+    }
+
+    function designatedWirdTeacherUid() {
+      return mutunWirdDoc().data.teacherUid;
+    }
+
+    // هل المتصل هو معلم المتون والأوراد المخصص؟
+    function isDesignatedWirdTeacher() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/app_settings/mutun_wird)
+          && designatedWirdTeacherUid() == request.auth.uid;
+    }
+
+    // ==================== app_settings ====================
+
+    // وثيقة إعداد معلم المتون والأوراد:
+    // القراءة متاحة للمعلمين (كل معلم يحتاج معرفة من المسؤول) —
+    // الكتابة للمدير فقط (التعيين/التغيير).
+    match /app_settings/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ==================== users ====================
+
+    // ملف المستخدم: قراءة الملف الذاتي والمدير، الكتابة لصاحبه
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    // ==================== teachers/students/lessons ====================
+    // (كما كانت — المصادقة مطلوبة فقط)
+
+    match /students/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /lessons/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /lesson_recordings/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /attendance/{doc} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // ==================== المتون والأوراد الرسمية ====================
+
+    // المتون: إنشاء المتون الرسمية (isOfficial == true) للمعلم
+    // المسؤول فقط؛ غير الرسمية لأي معلم.
+    match /mutun/{doc} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow update: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow delete: if isSignedIn();
+    }
+
+    // تسجيلات المتون (تسميع/تقدم):
+    // السجل الرسمي يُنشأه المعلم المسؤول فقط؛ غير الرسمي لأي معلم.
+    match /mutun_recordings/{doc} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow update: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow delete: if isSignedIn();
+    }
+
+    // تسجيلات القرآن (الأوراد):
+    // الورد الرسمي يُنشئه المعلم المسؤول فقط.
+    match /quran_recordings/{doc} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow update: if isSignedIn()
+          && (request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher());
+      allow delete: if isSignedIn();
+    }
+  }
+}
