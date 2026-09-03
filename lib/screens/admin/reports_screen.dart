@@ -9,14 +9,13 @@ import '../../core/theme.dart';
 import '../../models/app_user.dart';
 import '../../models/lesson.dart';
 import '../../models/matna.dart';
-import '../../models/quran.dart';
 import '../../services/report_pdf_service.dart';
 import '../../services/reports_service.dart';
 import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
 
-/// شاشة تقارير الإدارة — الأقسام ← معلمو القسم ونشاطهم (دروس/متون/قرآن) ← يومي/أسبوعي/شهري
+/// شاشة تقارير الإدارة — الأقسام ← معلمو القسم ونشاطهم (دروس/متون) ← يومي/أسبوعي/شهري
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -30,8 +29,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // كل الأقسام — بما فيها مسار القرآن الكريم
-    final pathways = AppConstants.pathways;
+    // كل الأقسام — باستثناء مسار القرآن الكريم
+    final pathways =
+        AppConstants.pathways.where((p) => p.id != 'quran').toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -214,7 +214,7 @@ class PathwayTeachersScreen extends StatelessWidget {
         ),
       ),
       body: WatermarkedBackground(
-        // دمج مصادر النشاط: دروس + متون + تسجيلات قرآن
+        // دمج مصادر النشاط: دروس + متون
         child: StreamBuilder<List<Lesson>>(
           stream: pathway.hasLessons
               ? reportsService.watchPathwayLessons(pathway.id)
@@ -225,94 +225,72 @@ class PathwayTeachersScreen extends StatelessWidget {
                   ? reportsService.watchPathwayMutun(pathway.id)
                   : Stream.value(const <Matna>[]),
               builder: (context, mutunSnap) {
-                return StreamBuilder<List<QuranRecording>>(
-                  stream: pathway.hasQuran
-                      ? reportsService
-                          .watchPathwayQuranRecordings(pathway.id)
-                      : Stream.value(const <QuranRecording>[]),
-                  builder: (context, quranSnap) {
-                    if (lessonsSnap.hasError ||
-                        mutunSnap.hasError ||
-                        quranSnap.hasError) {
-                      return ErrorState(
-                        message: 'حدث خطأ أثناء تحميل نشاط القسم',
-                        onRetry: () {},
-                      );
-                    }
-                    if (!lessonsSnap.hasData ||
-                        !mutunSnap.hasData ||
-                        !quranSnap.hasData) {
-                      return const ListSkeleton(itemCount: 3);
-                    }
+                if (lessonsSnap.hasError || mutunSnap.hasError) {
+                  return ErrorState(
+                    message: 'حدث خطأ أثناء تحميل نشاط القسم',
+                    onRetry: () {},
+                  );
+                }
+                if (!lessonsSnap.hasData || !mutunSnap.hasData) {
+                  return const ListSkeleton(itemCount: 3);
+                }
 
-                    // مجمّعة حسب المعلم — من المصادر الثلاثة
-                    final lessonsByTeacher = <String, List<Lesson>>{};
-                    for (final l in lessonsSnap.data!) {
-                      lessonsByTeacher
-                          .putIfAbsent(l.teacherId, () => [])
-                          .add(l);
-                    }
-                    final mutunByTeacher = <String, List<Matna>>{};
-                    for (final m in mutunSnap.data!) {
-                      mutunByTeacher
-                          .putIfAbsent(m.teacherId, () => [])
-                          .add(m);
-                    }
-                    final quranByTeacher = <String, List<QuranRecording>>{};
-                    for (final r in quranSnap.data!) {
-                      quranByTeacher
-                          .putIfAbsent(r.teacherId, () => [])
-                          .add(r);
-                    }
+                // مجمّعة حسب المعلم — من المصدرين
+                final lessonsByTeacher = <String, List<Lesson>>{};
+                for (final l in lessonsSnap.data!) {
+                  lessonsByTeacher
+                      .putIfAbsent(l.teacherId, () => [])
+                      .add(l);
+                }
+                final mutunByTeacher = <String, List<Matna>>{};
+                for (final m in mutunSnap.data!) {
+                  mutunByTeacher
+                      .putIfAbsent(m.teacherId, () => [])
+                      .add(m);
+                }
 
-                    // اتحاد معرفات المعلمين (بدون تكرار) ثم فرز أبجدي
-                    final teacherIds = {
-                      ...lessonsByTeacher.keys,
-                      ...mutunByTeacher.keys,
-                      ...quranByTeacher.keys,
-                    }.toList();
+                // اتحاد معرفات المعلمين (بدون تكرار) ثم فرز أبجدي
+                final teacherIds = {
+                  ...lessonsByTeacher.keys,
+                  ...mutunByTeacher.keys,
+                }.toList();
 
-                    if (teacherIds.isEmpty) {
-                      return EmptyState(
-                        icon: Icons.menu_book_outlined,
-                        title: 'لا يوجد نشاط في هذا القسم',
-                        message:
-                            'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
-                      );
-                    }
+                if (teacherIds.isEmpty) {
+                  return EmptyState(
+                    icon: Icons.menu_book_outlined,
+                    title: 'لا يوجد نشاط في هذا القسم',
+                    message:
+                        'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
+                  );
+                }
 
-                    return StreamBuilder<List<AppUser>>(
-                      stream: teachersService.watchTeachers(),
-                      builder: (context, teachersSnap) {
-                        final teachers = teachersSnap.data ?? [];
-                        final names = {
-                          for (final t in teachers) t.uid: t.name,
-                        };
+                return StreamBuilder<List<AppUser>>(
+                  stream: teachersService.watchTeachers(),
+                  builder: (context, teachersSnap) {
+                    final teachers = teachersSnap.data ?? [];
+                    final names = {
+                      for (final t in teachers) t.uid: t.name,
+                    };
 
-                        teacherIds.sort((a, b) =>
-                            (names[a] ?? 'م')
-                                .compareTo(names[b] ?? 'م'));
+                    teacherIds.sort((a, b) =>
+                        (names[a] ?? 'م')
+                            .compareTo(names[b] ?? 'م'));
 
-                        return ListView.builder(
-                          padding:
-                              const EdgeInsets.only(top: 8, bottom: 24),
-                          itemCount: teacherIds.length,
-                          itemBuilder: (context, index) {
-                            final teacherId = teacherIds[index];
-                            final name = names[teacherId] ?? 'معلم';
-                            return _TeacherLessonsTile(
-                              teacherId: teacherId,
-                              teacherName: name,
-                              lessons:
-                                  lessonsByTeacher[teacherId] ?? const [],
-                              mutun:
-                                  mutunByTeacher[teacherId] ?? const [],
-                              quranRecordings:
-                                  quranByTeacher[teacherId] ?? const [],
-                              pathway: pathway,
-                              reportsService: reportsService,
-                            );
-                          },
+                    return ListView.builder(
+                      padding:
+                          const EdgeInsets.only(top: 8, bottom: 24),
+                      itemCount: teacherIds.length,
+                      itemBuilder: (context, index) {
+                        final teacherId = teacherIds[index];
+                        final name = names[teacherId] ?? 'معلم';
+                        return _TeacherLessonsTile(
+                          teacherName: name,
+                          lessons:
+                              lessonsByTeacher[teacherId] ?? const [],
+                          mutun:
+                              mutunByTeacher[teacherId] ?? const [],
+                          pathway: pathway,
+                          reportsService: reportsService,
                         );
                       },
                     );
@@ -328,25 +306,21 @@ class PathwayTeachersScreen extends StatelessWidget {
 }
 
 class _TeacherLessonsTile extends StatelessWidget {
-  final String teacherId;
   final String teacherName;
   final List<Lesson> lessons;
   final List<Matna> mutun;
-  final List<QuranRecording> quranRecordings;
   final PathwayInfo pathway;
   final ReportsService reportsService;
 
   const _TeacherLessonsTile({
-    required this.teacherId,
     required this.teacherName,
     required this.lessons,
     required this.mutun,
-    required this.quranRecordings,
     required this.pathway,
     required this.reportsService,
   });
 
-  /// نص ملخص نشاط المعلم (دروس + متون + قرآن)
+  /// نص ملخص نشاط المعلم (دروس + متون)
   String get _activitySummary {
     final parts = <String>[];
     if (lessons.isNotEmpty) {
@@ -358,9 +332,6 @@ class _TeacherLessonsTile extends StatelessWidget {
       parts.add(mutun.length == 1
           ? 'متن واحد'
           : '${mutun.length} متون');
-    }
-    if (quranRecordings.isNotEmpty) {
-      parts.add('قرآن');
     }
     if (parts.isEmpty) return 'لا يوجد نشاط';
     return parts.join(' • ');
@@ -403,16 +374,7 @@ class _TeacherLessonsTile extends StatelessWidget {
                 reportsService: reportsService,
               ),
 
-            // ===== القرآن (تقرير واحد لكل معلم في المسار) =====
-            if (quranRecordings.isNotEmpty)
-              _QuranTile(
-                teacherId: teacherId,
-                teacherName: teacherName,
-                pathway: pathway,
-                reportsService: reportsService,
-              ),
-
-            if (lessons.isEmpty && mutun.isEmpty && quranRecordings.isEmpty)
+            if (lessons.isEmpty && mutun.isEmpty)
               Padding(
                 padding:
                     const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -2376,7 +2338,7 @@ class _MutunProgressCard extends StatelessWidget {
   }
 }
 
-// ==================== بطاقة يوم نشاط (متون/قرآن) ====================
+// ==================== بطاقة يوم نشاط (متون) ====================
 
 class _ActivityDayCard extends StatelessWidget {
   final ActivityDayReport report;
@@ -2529,7 +2491,7 @@ class _ActivityDayCard extends StatelessWidget {
   }
 }
 
-// ==================== شاشة تفاصيل يوم النشاط (متون/قرآن) ====================
+// ==================== شاشة تفاصيل يوم النشاط (متون) ====================
 
 class _ActivityDayDetailScreen extends StatelessWidget {
   final ActivityDayReport report;
