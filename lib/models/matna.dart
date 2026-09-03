@@ -66,6 +66,7 @@ class MutunRecording {
   final double count; // to - from + 1
   final String? notes;
   final DateTime? createdAt;
+  final String status; // 'present' | 'absent' | 'not_listened' — null/غير موجود = حاضر (توافق القديم)
 
   const MutunRecording({
     required this.id,
@@ -80,7 +81,17 @@ class MutunRecording {
     required this.count,
     this.notes,
     this.createdAt,
+    this.status = 'present',
   });
+
+  bool get isAbsent => status == 'absent';
+  bool get isNotListened => status == 'not_listened';
+  bool get wasPresent => !isAbsent && !isNotListened;
+  String get statusLabel => switch (status) {
+        'absent' => 'غائب',
+        'not_listened' => 'لم يسمع',
+        _ => 'حاضر',
+      };
 
   factory MutunRecording.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -98,6 +109,7 @@ class MutunRecording {
       count: (data['count'] as num?)?.toDouble() ?? 0,
       notes: data['notes'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      status: (data['status'] as String?) ?? 'present',
     );
   }
 }

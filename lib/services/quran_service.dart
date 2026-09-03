@@ -65,6 +65,33 @@ class QuranService {
             .toList());
   }
 
+  /// بث تسجيلات الورد القرآني لطالب معيّن (لتقارير الطلاب في حساب الإدارة)
+  /// شرط واحد (studentId) — لتفادي الفهارس المركّبة — + فرز الأحدث أولاً
+  Stream<List<QuranRecording>> watchStudentRecordings({
+    required String studentId,
+  }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا قبل أول snapshot
+    _firestore
+        .collection('quran_recordings')
+        .where('studentId', isEqualTo: studentId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('QuranService.watchStudentRecordings warm-up error: $e');
+    });
+
+    return _firestore
+        .collection('quran_recordings')
+        .where('studentId', isEqualTo: studentId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((d) => QuranRecording.fromFirestore(d))
+          .toList();
+      list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
+      return list;
+    });
+  }
+
   /// تسجيل ورد يومي لطالب
   Future<QuranOpResult> addWardRecording({
     required String teacherId,

@@ -155,7 +155,7 @@ class MutunService {
     });
   }
 
-  /// تسجيل حفظ يومي لطالب
+  /// تسجيل حفظ يومي لطالب — [status]: 'present' | 'absent' | 'not_listened'
   Future<MutunOpResult> addRecording({
     required Matna matna,
     required String studentId,
@@ -163,6 +163,7 @@ class MutunService {
     required double from,
     required double to,
     String? notes,
+    String status = 'present',
   }) async {
     try {
       final ref = await _firestore.collection('mutun_recordings').add({
@@ -178,6 +179,7 @@ class MutunService {
         'notes': (notes != null && notes.trim().isNotEmpty)
             ? notes.trim()
             : null,
+        'status': status,
         'createdAt': FieldValue.serverTimestamp(),
       });
       // بناء التسجيل محليًا — يتيح عرضه فورًا (تحديث متفائل)
@@ -196,12 +198,46 @@ class MutunService {
             ? notes.trim()
             : null,
         createdAt: DateTime.now(),
+        status: status,
       );
       return MutunOpResult.ok(recording: created);
     } catch (e) {
       debugPrint('MutunService.addRecording error: $e');
       return const MutunOpResult.fail('تعذّر حفظ التسجيل. حاول مجدداً.');
     }
+  }
+
+  /// بث تسجيلات طالب معيّن (لتقارير الطلاب في حساب الإدارة)
+  /// شرط واحد (studentId) — لتفادي الفهارس المركّبة — + فرز الأحدث أولاً
+  Stream<List<MutunRecording>> watchStudentRecordings({
+    required String studentId,
+  }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا قبل أول snapshot
+    _firestore
+        .collection('mutun_recordings')
+        .where('studentId', isEqualTo: studentId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('MutunService.watchStudentRecordings warm-up error: $e');
+    });
+
+    return _firestore
+        .collection('mutun_recordings')
+        .where('studentId', isEqualTo: studentId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((d) => MutunRecording.fromFirestore(d))
+          .toList();
+      list.sort((a, b) {
+        final cmp = b.date.compareTo(a.date); // الأحدث أولاً
+        if (cmp != 0) return cmp;
+        final aTime = a.createdAt ?? DateTime(2000);
+        final bTime = b.createdAt ?? DateTime(2000);
+        return bTime.compareTo(aTime);
+      });
+      return list;
+    });
   }
 
   /// حذف تسجيل حفظ

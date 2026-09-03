@@ -71,6 +71,37 @@ class StudentsService {
     return students;
   }
 
+  // ================= بث طلاب مسار معين (للإدارة — عبر كل المعلمين) =================
+
+  ///
+  /// شرط واحد فقط (pathwayId) — النمط المثبت في watchPathwayLessons —
+  /// يجلب كل طلاب القسم بغض النظر عن المعلم (لتقارير الطلاب في حساب الإدارة).
+  Stream<List<Student>> watchPathwayStudentsForAdmin({
+    required String pathwayId,
+  }) {
+    // جلب يدوي أولي لتعبئة الكاش فورًا — يضمن ظهور الطلاب حتى لو تأخر البث
+    _firestore
+        .collection('students')
+        .where('pathwayId', isEqualTo: pathwayId)
+        .get()
+        .then((_) {}, onError: (Object e) {
+      debugPrint('StudentsService.admin warm-up get error: $e');
+    });
+
+    return _firestore
+        .collection('students')
+        .where('pathwayId', isEqualTo: pathwayId)
+        .snapshots()
+        .map((snapshot) {
+      final students = snapshot.docs
+          .map((doc) => Student.fromFirestore(doc))
+          .toList();
+      // فرز أبجدي في الذاكرة لتفادي الفهارس المركّبة
+      students.sort((a, b) => a.name.compareTo(b.name));
+      return students;
+    });
+  }
+
   // ================= عدد الطلاب لكل مسار (لإحصائيات لوحة المعلم) =================
 
   Stream<Map<String, int>> watchStudentCounts(String teacherId) {

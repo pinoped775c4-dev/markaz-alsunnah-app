@@ -814,13 +814,21 @@ class _RecordingTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateText =
         DateFormat('d MMMM y', 'ar').format(recording.date);
+    final isAbsent = recording.isAbsent;
+    final isNotListened = recording.isNotListened;
+    final flagged = isAbsent || isNotListened;
+    final flagColor = isAbsent ? AppColors.error : AppColors.warning;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding:
           const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: isAbsent
+            ? AppColors.errorSurface
+            : isNotListened
+                ? AppColors.warningSurface
+                : AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
@@ -838,13 +846,35 @@ class _RecordingTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  'من ${fmtNum(recording.from)} إلى ${fmtNum(recording.to)} (${fmtNum(recording.count)} $unitLabel)',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.inkSecondary,
+                if (flagged) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        isAbsent
+                            ? Icons.event_busy_rounded
+                            : Icons.hearing_disabled_rounded,
+                        size: 16,
+                        color: flagColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        recording.statusLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: flagColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ] else
+                  Text(
+                    'من ${fmtNum(recording.from)} إلى ${fmtNum(recording.to)} (${fmtNum(recording.count)} $unitLabel)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.inkSecondary,
+                    ),
+                  ),
                 if (recording.notes != null &&
                     recording.notes!.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -907,6 +937,15 @@ class _AddMutunRecordingDialogState
   bool _isLoading = false;
   String? _errorMessage;
 
+  /// null = لم يُختر بعد (البيانات عائمة) | 'present' | 'absent'
+  String? _attendanceStatus;
+
+  /// البيانات قابلة للتعبئة فقط في وضع "حاضر"
+  bool get _dataEnabled => _attendanceStatus == 'present';
+
+  /// التاريخ يُفعَّل بعد اختيار أي حالة (حضور أو غياب)
+  bool get _dateEnabled => _attendanceStatus != null;
+
   @override
   void initState() {
     super.initState();
@@ -942,6 +981,18 @@ class _AddMutunRecordingDialogState
   }
 
   Future<void> _submit() async {
+    if (_attendanceStatus == null) {
+      setState(() => _errorMessage =
+          'اختر حالة الطالب أولاً: حاضر أو غائب');
+      return;
+    }
+
+    // وضع "غائب": لا بيانات — يُحفظ الغياب مباشرة
+    if (_attendanceStatus == 'absent') {
+      await _saveRecording(status: 'absent');
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
     final from = double.parse(_fromController.text.trim());
@@ -953,18 +1004,30 @@ class _AddMutunRecordingDialogState
       return;
     }
 
+    await _saveRecording(status: 'present', from: from, to: to);
+  }
+
+  Future<void> _saveRecording({
+    required String status,
+    double? from,
+    double? to,
+  }) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
+    // في وضع الغياب لا تُحفظ ملاحظات الحفظ
+    final notesText = status == 'absent' ? null : _notesController.text;
+
     final result = await widget.service.addRecording(
       matna: widget.matna,
       studentId: widget.student.id,
       date: _selectedDate,
-      from: from,
-      to: to,
-      notes: _notesController.text,
+      from: from ?? 0,
+      to: to ?? 0,
+      notes: notesText,
+      status: status,
     );
 
     if (!mounted) return;
@@ -972,7 +1035,11 @@ class _AddMutunRecordingDialogState
     if (result.success) {
       Navigator.pop(context);
       showSuccessSnackBar(
-          context, 'تم تسجيل حفظ ${widget.student.name}');
+        context,
+        status == 'absent'
+            ? 'تم تسجيل غياب ${widget.student.name}'
+            : 'تم تسجيل حفظ ${widget.student.name}',
+      );
     } else {
       setState(() {
         _isLoading = false;
@@ -988,6 +1055,7 @@ class _AddMutunRecordingDialogState
     final dateText =
         DateFormat('d MMMM y', 'ar').format(_selectedDate);
     final count = _autoCount;
+    final isAbsentMode = _attendanceStatus == 'absent';
 
     return Dialog(
       insetPadding:
@@ -1033,6 +1101,94 @@ class _AddMutunRecordingDialogState
                 ),
                 const SizedBox(height: 20),
 
+                // ==== زرا الحضور/الغياب — أعلى البطاقة ====
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AttendanceButton(
+                        label: 'حاضر',
+                        icon: Icons.check_circle_outline_rounded,
+                        selected: _attendanceStatus == 'present',
+                        enabled: !_isLoading,
+                        color: AppColors.primary,
+                        surfaceColor: AppColors.primarySurface,
+                        onTap: () => setState(() {
+                          _attendanceStatus = 'present';
+                          _errorMessage = null;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _AttendanceButton(
+                        label: 'غائب',
+                        icon: Icons.event_busy_rounded,
+                        selected: isAbsentMode,
+                        enabled: !_isLoading,
+                        color: AppColors.error,
+                        surfaceColor: AppColors.errorSurface,
+                        onTap: () => setState(() {
+                          _attendanceStatus = 'absent';
+                          _errorMessage = null;
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                if (_attendanceStatus == null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceAlt,
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.touch_app_rounded,
+                            size: 18, color: AppColors.inkMuted),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'البيانات معطّلة — اختر حالة الطالب (حاضر / غائب) أولاً',
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: AppColors.inkMuted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                if (isAbsentMode) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorSurface,
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_busy_rounded,
+                            size: 18, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'سيُسجَّل ${widget.student.name} غائباً في التاريخ المحدد أدناه',
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
                 if (_errorMessage != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -1050,111 +1206,126 @@ class _AddMutunRecordingDialogState
 
                 // التاريخ (يحدد اليوم تلقائياً)
                 InkWell(
-                  onTap: _pickDate,
+                  onTap: _dateEnabled ? _pickDate : null,
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   child: InputDecorator(
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'التاريخ',
                       prefixIcon:
-                          Icon(Icons.calendar_month_rounded),
+                          const Icon(Icons.calendar_month_rounded),
+                      enabled: _dateEnabled,
                     ),
                     child: Row(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('$weekday، $dateText'),
-                        const Icon(Icons.edit_calendar_outlined,
-                            size: 18, color: AppColors.inkMuted),
+                        Text(
+                          '$weekday، $dateText',
+                          style: _dateEnabled
+                              ? null
+                              : const TextStyle(
+                                  color: AppColors.inkMuted),
+                        ),
+                        if (_dateEnabled)
+                          const Icon(Icons.edit_calendar_outlined,
+                              size: 18, color: AppColors.inkMuted),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
 
-                // من / إلى
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _fromController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: InputDecoration(
-                          labelText:
-                              'من (${widget.matna.unitLabel}) *',
+                // حقول المقدار والملاحظات — تُخفى في وضع "غائب"
+                if (!isAbsentMode) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _fromController,
+                          enabled: _dataEnabled,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
+                          decoration: InputDecoration(
+                            labelText:
+                                'من (${widget.matna.unitLabel}) *',
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          validator: (v) {
+                            final n =
+                                double.tryParse(v?.trim() ?? '');
+                            if (n == null || n < 1) {
+                              return 'أدخل رقماً صحيحاً';
+                            }
+                            return null;
+                          },
                         ),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) {
-                          final n =
-                              double.tryParse(v?.trim() ?? '');
-                          if (n == null || n < 1) {
-                            return 'أدخل رقماً صحيحاً';
-                          }
-                          return null;
-                        },
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _toController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: InputDecoration(
-                          labelText:
-                              'إلى (${widget.matna.unitLabel}) *',
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _toController,
+                          enabled: _dataEnabled,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
+                          decoration: InputDecoration(
+                            labelText:
+                                'إلى (${widget.matna.unitLabel}) *',
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          validator: (v) {
+                            final n =
+                                double.tryParse(v?.trim() ?? '');
+                            if (n == null || n < 1) {
+                              return 'أدخل رقماً صحيحاً';
+                            }
+                            final from = double.tryParse(
+                                _fromController.text.trim());
+                            if (from != null && n < from) {
+                              return 'أقل من "من"';
+                            }
+                            return null;
+                          },
                         ),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) {
-                          final n =
-                              double.tryParse(v?.trim() ?? '');
-                          if (n == null || n < 1) {
-                            return 'أدخل رقماً صحيحاً';
-                          }
-                          final from = double.tryParse(
-                              _fromController.text.trim());
-                          if (from != null && n < from) {
-                            return 'أقل من "من"';
-                          }
-                          return null;
-                        },
+                      ),
+                    ],
+                  ),
+
+                  if (_dataEnabled && count != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Text(
+                        'المقدار: $count ${widget.matna.unitLabel} (محسوب تلقائياً)',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
-                ),
+                  const SizedBox(height: 14),
 
-                if (count != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySurface,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
-                    ),
-                    child: Text(
-                      'المقدار: $count ${widget.matna.unitLabel} (محسوب تلقائياً)',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                  TextFormField(
+                    controller: _notesController,
+                    enabled: _dataEnabled,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظات (اختياري)',
+                      prefixIcon: Icon(Icons.notes_rounded),
+                      alignLabelWithHint: true,
                     ),
                   ),
                 ],
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: _notesController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظات (اختياري)',
-                    prefixIcon: Icon(Icons.notes_rounded),
-                    alignLabelWithHint: true,
-                  ),
-                ),
                 const SizedBox(height: 24),
 
                 Row(
@@ -1188,7 +1359,9 @@ class _AddMutunRecordingDialogState
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('حفظ التسجيل'),
+                            : Text(isAbsentMode
+                                ? 'حفظ الغياب'
+                                : 'حفظ التسجيل'),
                       ),
                     ),
                   ],
@@ -1196,6 +1369,65 @@ class _AddMutunRecordingDialogState
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// زر اختيار الحضور/الغياب أعلى حوار تسجيل الحفظ
+class _AttendanceButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool enabled;
+  final Color color;
+  final Color surfaceColor;
+  final VoidCallback onTap;
+
+  const _AttendanceButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.enabled,
+    required this.color,
+    required this.surfaceColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? surfaceColor : AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: selected ? color : AppColors.lineSoft,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 20,
+                color: selected ? color : AppColors.inkMuted),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight:
+                    selected ? FontWeight.bold : FontWeight.normal,
+                color: selected ? color : AppColors.inkSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
