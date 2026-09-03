@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import '../models/app_user.dart';
+import 'mutun_wird_service.dart';
 
 /// نتيجة عملية على المعلمين
 class TeacherOpResult {
@@ -79,11 +80,13 @@ class TeachersService {
     } on FirebaseException catch (e) {
       debugPrint('TeachersService.createTeacher Firestore error: $e');
       return const TeacherOpResult.fail(
-          'تم إنشاء الحساب لكن فشل حفظ البيانات، حاول مرة أخرى');
+        'تم إنشاء الحساب لكن فشل حفظ البيانات، حاول مرة أخرى',
+      );
     } catch (e) {
       debugPrint('TeachersService.createTeacher error: $e');
       return const TeacherOpResult.fail(
-          'حدث خطأ غير متوقع، تحقق من الإنترنت وحاول مرة أخرى');
+        'حدث خطأ غير متوقع، تحقق من الإنترنت وحاول مرة أخرى',
+      );
     }
   }
 
@@ -97,16 +100,17 @@ class TeachersService {
         .where('role', isEqualTo: 'teacher')
         .snapshots()
         .map((snapshot) {
-      final teachers =
-          snapshot.docs.map((doc) => AppUser.fromFirestore(doc)).toList();
-      // فرز في الذاكرة: الأحدث أولاً
-      teachers.sort((a, b) {
-        final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bDate.compareTo(aDate);
-      });
-      return teachers;
-    });
+          final teachers = snapshot.docs
+              .map((doc) => AppUser.fromFirestore(doc))
+              .toList();
+          // فرز في الذاكرة: الأحدث أولاً
+          teachers.sort((a, b) {
+            final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bDate.compareTo(aDate);
+          });
+          return teachers;
+        });
   }
 
   // ================= تفعيل / تعطيل =================
@@ -119,8 +123,7 @@ class TeachersService {
       return const TeacherOpResult.ok();
     } catch (e) {
       debugPrint('TeachersService.setTeacherStatus error: $e');
-      return const TeacherOpResult.fail(
-          'فشل تحديث حالة المعلم، حاول مرة أخرى');
+      return const TeacherOpResult.fail('فشل تحديث حالة المعلم، حاول مرة أخرى');
     }
   }
 
@@ -149,7 +152,9 @@ class TeachersService {
       // نعالج 10 دروس في كل استعلام (حد whereIn في Firestore)
       for (var i = 0; i < lessonIds.length; i += 10) {
         final chunk = lessonIds.sublist(
-            i, i + 10 > lessonIds.length ? lessonIds.length : i + 10);
+          i,
+          i + 10 > lessonIds.length ? lessonIds.length : i + 10,
+        );
         final attendanceSnap = await _firestore
             .collection('attendance')
             .where('lessonId', whereIn: chunk)
@@ -180,7 +185,9 @@ class TeachersService {
         for (var i = 0; i < snapshot.docs.length; i += 400) {
           final batch = _firestore.batch();
           final chunk = snapshot.docs.sublist(
-              i, i + 400 > snapshot.docs.length ? snapshot.docs.length : i + 400);
+            i,
+            i + 400 > snapshot.docs.length ? snapshot.docs.length : i + 400,
+          );
           for (final doc in chunk) {
             batch.delete(doc.reference);
           }
@@ -189,13 +196,19 @@ class TeachersService {
       }
 
       // المرحلة 2: حذف ملف المعلم نفسه
+      // إغلاق تعيين المتون والأوراد إذا كان المحذوف هو المعلم المسؤول
+      // (التعيين يُفرَّغ ويُلحق بالتاريخ — والسجلات الرسمية السابقة
+      // المختومة isOfficial تبقى رسمية — لا حذف لأي بيانات إطلاقاً)
+      await MutunWirdService().closeDesignationForDeletedTeacher(uid);
+
       await teacherDoc.delete();
 
       return const TeacherOpResult.ok();
     } catch (e) {
       debugPrint('TeachersService.deleteTeacherAccount error: $e');
       return const TeacherOpResult.fail(
-          'فشل حذف حساب المعلم، تحقق من الإنترنت وحاول مرة أخرى');
+        'فشل حذف حساب المعلم، تحقق من الإنترنت وحاول مرة أخرى',
+      );
     }
   }
 
@@ -212,7 +225,8 @@ class TeachersService {
   }) async {
     if (newPassword.trim().length < 8) {
       return const TeacherOpResult.fail(
-          'كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+        'كلمة المرور يجب أن تكون 8 أحرف على الأقل',
+      );
     }
     try {
       await _firestore.collection('users').doc(uid).update({
@@ -223,7 +237,8 @@ class TeachersService {
     } catch (e) {
       debugPrint('TeachersService.resetTeacherPassword error: $e');
       return const TeacherOpResult.fail(
-          'فشل حفظ كلمة المرور الجديدة، تحقق من الإنترنت وحاول مرة أخرى');
+        'فشل حفظ كلمة المرور الجديدة، تحقق من الإنترنت وحاول مرة أخرى',
+      );
     }
   }
 
