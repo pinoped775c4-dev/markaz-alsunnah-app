@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../core/constants.dart';
 import '../models/quran.dart';
+import 'mutun_wird_service.dart';
 
 /// نتيجة عملية قرآنية
 class QuranOpResult {
@@ -15,8 +16,13 @@ class QuranOpResult {
 }
 
 /// خدمة الأوراد القرآنية — كل الاستعلامات مُرشّحة بـ teacherId
+///
+/// نظام "معلم المتون والأوراد": تسجيل الأوراد الرسمية متاح
+/// للمعلم المسؤول المخصص من الإدارة فقط (تحقق فعلي في الخدمة)،
+/// والورد الجديد يُختم بـ isOfficial فيدخل التقارير الرسمية.
 class QuranService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final MutunWirdService _wirdService = MutunWirdService();
 
   static String weekdayOf(DateTime date) =>
       DateFormat('EEEE', 'ar').format(date);
@@ -35,64 +41,73 @@ class QuranService {
         .collection('quran_recordings')
         .where('teacherId', isEqualTo: teacherId)
         .get()
-        .then((_) {}, onError: (Object e) {
-      debugPrint('QuranService.watchPathwayRecordings warm-up error: $e');
-    });
+        .then(
+          (_) {},
+          onError: (Object e) {
+            debugPrint('QuranService.watchPathwayRecordings warm-up error: $e');
+          },
+        );
 
     return _firestore
         .collection('quran_recordings')
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs
-          .where((d) => d.data()['pathwayId'] == pathwayId)
-          .map((d) => QuranRecording.fromFirestore(d))
-          .toList();
-      list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
-      return list;
-    });
+          final list = snapshot.docs
+              .where((d) => d.data()['pathwayId'] == pathwayId)
+              .map((d) => QuranRecording.fromFirestore(d))
+              .toList();
+          list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
+          return list;
+        });
   }
 
   /// بث كل تسجيلات معلم في كل المسارات (لتقارير الإدارة)
-  Stream<List<QuranRecording>> watchAllTeacherRecordings(
-      String teacherId) {
+  Stream<List<QuranRecording>> watchAllTeacherRecordings(String teacherId) {
     return _firestore
         .collection('quran_recordings')
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((d) => QuranRecording.fromFirestore(d))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((d) => QuranRecording.fromFirestore(d))
+              .toList(),
+        );
   }
 
   /// بث تسجيلات الورد القرآني لطالب معيّن (لتقارير الطلاب في حساب الإدارة)
   /// شرط واحد (studentId) — لتفادي الفهارس المركّبة — + فرز الأحدث أولاً
   Stream<List<QuranRecording>> watchStudentRecordings({
     required String studentId,
+    bool officialOnly = false,
   }) {
     // جلب يدوي أولي لتعبئة الكاش فورًا قبل أول snapshot
     _firestore
         .collection('quran_recordings')
         .where('studentId', isEqualTo: studentId)
         .get()
-        .then((_) {}, onError: (Object e) {
-      debugPrint('QuranService.watchStudentRecordings warm-up error: $e');
-    });
+        .then(
+          (_) {},
+          onError: (Object e) {
+            debugPrint('QuranService.watchStudentRecordings warm-up error: $e');
+          },
+        );
 
     return _firestore
         .collection('quran_recordings')
         .where('studentId', isEqualTo: studentId)
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs
-          .map((d) => QuranRecording.fromFirestore(d))
-          .toList();
-      list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
-      return list;
-    });
+          final list = snapshot.docs
+              .where((d) => !officialOnly || d.data()['isOfficial'] == true)
+              .map((d) => QuranRecording.fromFirestore(d))
+              .toList();
+          list.sort((a, b) => b.date.compareTo(a.date)); // الأحدث أولاً
+          return list;
+        });
   }
 
-  /// تسجيل ورد يومي لطالب
+  /// تسجيل ورد يومي لطالب — رسمي للمعلم المسؤول المخصص فقط (يُختم isOfficial)
   Future<QuranOpResult> addWardRecording({
     required String teacherId,
     required String pathwayId,
@@ -102,10 +117,20 @@ class QuranService {
     required double toPage,
     String? notes,
   }) async {
+    // تحقق فعلي في الخدمة: المسجل يجب أن يكون المعلم المسؤول المخصص
+    // ونفس المستخدم المسجل (منع انتحال هوية معلم آخر)
+    if (!await _wirdService.canCreateOfficial(teacherId)) {
+      return const QuranOpResult.fail(
+        'تسجيل الأوراد القرآنية الرسمية متاح لمعلم المتون والأوراد المخصص من الإدارة فقط.',
+      );
+    }
     // تحقق من نطاق المصحف
-    if (fromPage < 1 || toPage > AppConstants.khatmaPages || toPage < fromPage) {
+    if (fromPage < 1 ||
+        toPage > AppConstants.khatmaPages ||
+        toPage < fromPage) {
       return QuranOpResult.fail(
-          'نطاق الصفحات غير صحيح (1 – ${AppConstants.khatmaPages})');
+        'نطاق الصفحات غير صحيح (1 – ${AppConstants.khatmaPages})',
+      );
     }
 
     try {
@@ -121,6 +146,7 @@ class QuranService {
         'notes': (notes != null && notes.trim().isNotEmpty)
             ? notes.trim()
             : null,
+        'isOfficial': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
       return const QuranOpResult.ok();
@@ -130,13 +156,29 @@ class QuranService {
     }
   }
 
-  /// حذف تسجيل ورد
+  /// حذف تسجيل ورد — الرسمي: المعلم المسؤول فقط؛ غير الرسمي: المسؤول أو صاحب السجل
   Future<QuranOpResult> deleteRecording(String recordingId) async {
     try {
-      await _firestore
+      // جلب السجل أولاً لفحص صلاحية الحذف (رسمي/غير رسمي)
+      final doc = await _firestore
           .collection('quran_recordings')
           .doc(recordingId)
-          .delete();
+          .get();
+      if (!doc.exists) {
+        return const QuranOpResult.ok(); // حُذف مسبقاً — لا خطأ
+      }
+      final rec = QuranRecording.fromFirestore(doc);
+      if (!await _wirdService.canDeleteRecord(
+        isOfficial: rec.isOfficial,
+        recordTeacherId: rec.teacherId,
+      )) {
+        return QuranOpResult.fail(
+          rec.isOfficial
+              ? 'حذف السجلات الرسمية متاح لمعلم المتون والأوراد المخصص فقط.'
+              : 'لا يمكنك حذف هذا الورد — متاح لصاحبه أو لمعلم المتون والأوراد.',
+        );
+      }
+      await _firestore.collection('quran_recordings').doc(recordingId).delete();
       return const QuranOpResult.ok();
     } catch (e) {
       debugPrint('QuranService.deleteRecording error: $e');
