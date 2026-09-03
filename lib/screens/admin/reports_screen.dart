@@ -40,8 +40,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     // كل الأقسام — باستثناء مسار القرآن الكريم
-    final pathways =
-        AppConstants.pathways.where((p) => p.id != 'quran').toList();
+    final pathways = AppConstants.pathways
+        .where((p) => p.id != 'quran')
+        .toList();
 
     return DefaultTabController(
       length: 2,
@@ -53,8 +54,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               Text('التقارير'),
               Text(
                 'تقارير المعلمين والطلاب',
-                style:
-                    TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
               ),
             ],
           ),
@@ -66,8 +66,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             const Padding(
               padding: EdgeInsetsDirectional.only(end: 12),
-              child: Center(
-                  child: CircularLogo(size: 42, elevated: false)),
+              child: Center(child: CircularLogo(size: 42, elevated: false)),
             ),
           ],
           bottom: const TabBar(
@@ -248,7 +247,8 @@ class _PathwayReportItem extends StatelessWidget {
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: onTap ??
+        onTap:
+            onTap ??
             () {
               Navigator.push(
                 context,
@@ -270,8 +270,7 @@ class _PathwayReportItem extends StatelessWidget {
                 height: 92,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                      color: AppColors.goldSoft, width: 2.5),
+                  border: Border.all(color: AppColors.goldSoft, width: 2.5),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: 0.14),
@@ -294,14 +293,18 @@ class _PathwayReportItem extends StatelessWidget {
               Text(
                 pathway.name,
                 textAlign: TextAlign.center,
-                style: textTheme.titleSmall
-                    ?.copyWith(fontSize: 13, height: 1.25),
+                style: textTheme.titleSmall?.copyWith(
+                  fontSize: 13,
+                  height: 1.25,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: textTheme.bodySmall
-                    ?.copyWith(fontSize: 10.5, color: AppColors.gold),
+                style: textTheme.bodySmall?.copyWith(
+                  fontSize: 10.5,
+                  color: AppColors.gold,
+                ),
               ),
             ],
           ),
@@ -311,10 +314,9 @@ class _PathwayReportItem extends StatelessWidget {
   }
 
   Widget _fallback() => Container(
-        color: AppColors.primarySurface,
-        child: const Icon(Icons.school_rounded,
-            color: AppColors.primary, size: 36),
-      );
+    color: AppColors.primarySurface,
+    child: const Icon(Icons.school_rounded, color: AppColors.primary, size: 36),
+  );
 }
 
 // ==================== شاشة معلمي القسم ====================
@@ -341,8 +343,7 @@ class PathwayTeachersScreen extends StatelessWidget {
             Text(pathway.name),
             Text(
               'معلمو القسم ونشاطهم في هذا القسم',
-              style:
-                  TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -372,15 +373,11 @@ class PathwayTeachersScreen extends StatelessWidget {
                 // مجمّعة حسب المعلم — من المصدرين
                 final lessonsByTeacher = <String, List<Lesson>>{};
                 for (final l in lessonsSnap.data!) {
-                  lessonsByTeacher
-                      .putIfAbsent(l.teacherId, () => [])
-                      .add(l);
+                  lessonsByTeacher.putIfAbsent(l.teacherId, () => []).add(l);
                 }
                 final mutunByTeacher = <String, List<Matna>>{};
                 for (final m in mutunSnap.data!) {
-                  mutunByTeacher
-                      .putIfAbsent(m.teacherId, () => [])
-                      .add(m);
+                  mutunByTeacher.putIfAbsent(m.teacherId, () => []).add(m);
                 }
 
                 // اتحاد معرفات المعلمين (بدون تكرار) ثم فرز أبجدي
@@ -393,8 +390,7 @@ class PathwayTeachersScreen extends StatelessWidget {
                   return EmptyState(
                     icon: Icons.menu_book_outlined,
                     title: 'لا يوجد نشاط في هذا القسم',
-                    message:
-                        'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
+                    message: 'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
                   );
                 }
 
@@ -402,27 +398,22 @@ class PathwayTeachersScreen extends StatelessWidget {
                   stream: teachersService.watchTeachers(),
                   builder: (context, teachersSnap) {
                     final teachers = teachersSnap.data ?? [];
-                    final names = {
-                      for (final t in teachers) t.uid: t.name,
-                    };
+                    final names = {for (final t in teachers) t.uid: t.name};
 
-                    teacherIds.sort((a, b) =>
-                        (names[a] ?? 'م')
-                            .compareTo(names[b] ?? 'م'));
+                    teacherIds.sort(
+                      (a, b) => (names[a] ?? 'م').compareTo(names[b] ?? 'م'),
+                    );
 
                     return ListView.builder(
-                      padding:
-                          const EdgeInsets.only(top: 8, bottom: 24),
+                      padding: const EdgeInsets.only(top: 8, bottom: 24),
                       itemCount: teacherIds.length,
                       itemBuilder: (context, index) {
                         final teacherId = teacherIds[index];
                         final name = names[teacherId] ?? 'معلم';
                         return _TeacherLessonsTile(
                           teacherName: name,
-                          lessons:
-                              lessonsByTeacher[teacherId] ?? const [],
-                          mutun:
-                              mutunByTeacher[teacherId] ?? const [],
+                          lessons: lessonsByTeacher[teacherId] ?? const [],
+                          mutun: mutunByTeacher[teacherId] ?? const [],
                           pathway: pathway,
                           reportsService: reportsService,
                         );
@@ -458,14 +449,10 @@ class _TeacherLessonsTile extends StatelessWidget {
   String get _activitySummary {
     final parts = <String>[];
     if (lessons.isNotEmpty) {
-      parts.add(lessons.length == 1
-          ? 'درس واحد'
-          : '${lessons.length} دروس');
+      parts.add(lessons.length == 1 ? 'درس واحد' : '${lessons.length} دروس');
     }
     if (mutun.isNotEmpty) {
-      parts.add(mutun.length == 1
-          ? 'متن واحد'
-          : '${mutun.length} متون');
+      parts.add(mutun.length == 1 ? 'متن واحد' : '${mutun.length} متون');
     }
     if (parts.isEmpty) return 'لا يوجد نشاط';
     return parts.join(' • ');
@@ -483,8 +470,7 @@ class _TeacherLessonsTile extends StatelessWidget {
         border: Border.all(color: AppColors.lineSoft),
       ),
       child: Theme(
-        data: Theme.of(context)
-            .copyWith(dividerColor: Colors.transparent),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           leading: InitialAvatar(name: teacherName),
           title: Text(teacherName, style: textTheme.titleSmall),
@@ -510,12 +496,12 @@ class _TeacherLessonsTile extends StatelessWidget {
 
             if (lessons.isEmpty && mutun.isEmpty)
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: Text(
                   'لا يوجد نشاط مسجّل لهذا المعلم',
-                  style: textTheme.bodySmall
-                      ?.copyWith(color: AppColors.inkMuted),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.inkMuted,
+                  ),
                 ),
               ),
             const SizedBox(height: 6),
@@ -591,10 +577,7 @@ class _LessonTile extends StatelessWidget {
                     children: [
                       Text(lesson.name, style: textTheme.titleSmall),
                       const SizedBox(height: 3),
-                      Text(
-                        lesson.typeLabel,
-                        style: textTheme.bodySmall,
-                      ),
+                      Text(lesson.typeLabel, style: textTheme.bodySmall),
                       const SizedBox(height: 6),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
@@ -602,9 +585,9 @@ class _LessonTile extends StatelessWidget {
                           value: lesson.progress,
                           minHeight: 6,
                           backgroundColor: AppColors.lineSoft,
-                          valueColor:
-                              const AlwaysStoppedAnimation<Color>(
-                                  AppColors.primary),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
                         ),
                       ),
                     ],
@@ -716,9 +699,7 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
     DateTime? date,
   ) {
     if (date == null) return reports;
-    return reports
-        .where((r) => DateUtils.isSameDay(r.date, date))
-        .toList();
+    return reports.where((r) => DateUtils.isSameDay(r.date, date)).toList();
   }
 
   @override
@@ -766,7 +747,9 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
             Text(
               '${widget.teacherName} • ${widget.pathwayName}',
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -803,8 +786,9 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
               return ErrorState(
                 message: 'حدث خطأ أثناء تحميل التقرير',
                 onRetry: () => setState(() {
-                  _future = widget.reportsService
-                      .buildLessonDailyReports(widget.lesson);
+                  _future = widget.reportsService.buildLessonDailyReports(
+                    widget.lesson,
+                  );
                 }),
               );
             }
@@ -851,7 +835,9 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primarySurface,
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -859,8 +845,11 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.filter_alt_rounded,
-                            size: 18, color: AppColors.primary),
+                        const Icon(
+                          Icons.filter_alt_rounded,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -872,8 +861,7 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () =>
-                              setState(() => _searchDate = null),
+                          onPressed: () => setState(() => _searchDate = null),
                           child: const Text('عرض الكل'),
                         ),
                       ],
@@ -902,8 +890,7 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                       key: _dayKeys[report.recording.id],
                       report: report,
                       lesson: widget.lesson,
-                      isToday: DateUtils.isSameDay(
-                          report.date, DateTime.now()),
+                      isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                     ),
 
                 // ===== التقارير الأسبوعية =====
@@ -1016,10 +1003,7 @@ class _DailyReportCard extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => DayDetailScreen(
-                  report: report,
-                  lesson: lesson,
-                ),
+                builder: (_) => DayDetailScreen(report: report, lesson: lesson),
               ),
             );
           },
@@ -1032,7 +1016,9 @@ class _DailyReportCard extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: isToday
                             ? AppColors.primarySurface
@@ -1053,7 +1039,9 @@ class _DailyReportCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           gradient: AppColors.goldGradient,
                           borderRadius: BorderRadius.circular(20),
@@ -1069,10 +1057,11 @@ class _DailyReportCard extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
-                    Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 14,
-                        color:
-                            AppColors.inkMuted.withValues(alpha: 0.6)),
+                    Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 14,
+                      color: AppColors.inkMuted.withValues(alpha: 0.6),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -1096,8 +1085,7 @@ class _DailyReportCard extends StatelessWidget {
                     _MiniStat(
                       icon: Icons.trending_up_rounded,
                       label: 'الإنجاز',
-                      value:
-                          '${(report.completionRate * 100).round()}%',
+                      value: '${(report.completionRate * 100).round()}%',
                       color: AppColors.gold,
                     ),
                   ],
@@ -1147,8 +1135,7 @@ class _MiniStat extends StatelessWidget {
             ),
             Text(
               label,
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.inkMuted),
+              style: const TextStyle(fontSize: 10, color: AppColors.inkMuted),
             ),
           ],
         ),
@@ -1210,9 +1197,9 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
     final attendancePct = report.attendanceRates.values.isEmpty
         ? 0
         : (report.attendanceRates.values.fold(0.0, (s, v) => s + v) /
-                report.attendanceRates.length *
-                100)
-            .round();
+                  report.attendanceRates.length *
+                  100)
+              .round();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1220,9 +1207,7 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: period.isCurrent
-              ? AppColors.gold
-              : AppColors.lineSoft,
+          color: period.isCurrent ? AppColors.gold : AppColors.lineSoft,
           width: period.isCurrent ? 1.6 : 1,
         ),
       ),
@@ -1274,18 +1259,21 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(period.title,
-                                style: textTheme.titleSmall),
+                            child: Text(
+                              period.title,
+                              style: textTheme.titleSmall,
+                            ),
                           ),
                           if (period.isCurrent) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 gradient: AppColors.goldGradient,
-                                borderRadius:
-                                    BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: const Text(
                                 'جديد',
@@ -1300,8 +1288,7 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(period.subtitle,
-                          style: textTheme.bodySmall),
+                      Text(period.subtitle, style: textTheme.bodySmall),
                       const SizedBox(height: 5),
                       Text(
                         'المنجز: ${fmtNum(report.unitsAccomplished)} وحدة • الحضور: $attendancePct%',
@@ -1322,11 +1309,13 @@ class _PeriodCardTileState extends State<_PeriodCardTile> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.picture_as_pdf_rounded,
-                          size: 21, color: AppColors.error),
+                      : const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          size: 21,
+                          color: AppColors.error,
+                        ),
                 ),
               ],
             ),
@@ -1352,11 +1341,9 @@ class DayDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final dateText =
-        DateFormat('EEEE، d MMMM y', 'ar').format(report.date);
+    final dateText = DateFormat('EEEE، d MMMM y', 'ar').format(report.date);
     final attendancePct = (report.attendanceRate * 100).round();
-    final completionPct =
-        (report.completionRate * 100).round();
+    final completionPct = (report.completionRate * 100).round();
 
     return Scaffold(
       appBar: AppBar(
@@ -1367,7 +1354,9 @@ class DayDetailScreen extends StatelessWidget {
             Text(
               dateText,
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -1388,8 +1377,7 @@ class DayDetailScreen extends StatelessWidget {
                 children: [
                   Text(
                     lesson.name,
-                    style: textTheme.titleMedium
-                        ?.copyWith(color: Colors.white),
+                    style: textTheme.titleMedium?.copyWith(color: Colors.white),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -1426,11 +1414,13 @@ class DayDetailScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.how_to_reg_rounded,
-                          color: AppColors.success, size: 20),
+                      const Icon(
+                        Icons.how_to_reg_rounded,
+                        color: AppColors.success,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
-                      Text('حضور الطلاب',
-                          style: textTheme.titleSmall),
+                      Text('حضور الطلاب', style: textTheme.titleSmall),
                       const Spacer(),
                       Text(
                         '${report.presentCount}/${report.totalStudents}',
@@ -1449,7 +1439,8 @@ class DayDetailScreen extends StatelessWidget {
                       minHeight: 9,
                       backgroundColor: AppColors.lineSoft,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.success),
+                        AppColors.success,
+                      ),
                     ),
                   ),
                 ],
@@ -1465,20 +1456,25 @@ class DayDetailScreen extends StatelessWidget {
                   color: AppColors.errorSurface,
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.25)),
+                    color: AppColors.error.withValues(alpha: 0.25),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.person_off_outlined,
-                            color: AppColors.error, size: 20),
+                        const Icon(
+                          Icons.person_off_outlined,
+                          color: AppColors.error,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'الطلاب الغائبون (${report.absentNames.length})',
-                          style: textTheme.titleSmall
-                              ?.copyWith(color: AppColors.error),
+                          style: textTheme.titleSmall?.copyWith(
+                            color: AppColors.error,
+                          ),
                         ),
                       ],
                     ),
@@ -1490,21 +1486,24 @@ class DayDetailScreen extends StatelessWidget {
                         for (final name in report.absentNames)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: AppColors.error
-                                      .withValues(alpha: 0.35)),
+                                color: AppColors.error.withValues(alpha: 0.35),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.close_rounded,
-                                    size: 13,
-                                    color: AppColors.error),
+                                const Icon(
+                                  Icons.close_rounded,
+                                  size: 13,
+                                  color: AppColors.error,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   name,
@@ -1531,8 +1530,11 @@ class DayDetailScreen extends StatelessWidget {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.celebration_rounded,
-                        color: AppColors.success, size: 20),
+                    Icon(
+                      Icons.celebration_rounded,
+                      color: AppColors.success,
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1563,12 +1565,14 @@ class DayDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('ملاحظات المعلم',
-                        style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold)),
+                    Text(
+                      'ملاحظات المعلم',
+                      style: textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 5),
-                    Text(report.recording.notes!,
-                        style: textTheme.bodyMedium),
+                    Text(report.recording.notes!, style: textTheme.bodyMedium),
                   ],
                 ),
               ),
@@ -1636,11 +1640,7 @@ class _RatePie extends StatelessWidget {
   final int pct;
   final Color color;
 
-  const _RatePie({
-    required this.label,
-    required this.pct,
-    required this.color,
-  });
+  const _RatePie({required this.label, required this.pct, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1699,10 +1699,7 @@ class _RatePie extends StatelessWidget {
             Container(
               width: 10,
               height: 10,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 6),
             Text(
@@ -1766,8 +1763,7 @@ class _PeriodDetailScreenState extends State<PeriodDetailScreen> {
   Widget build(BuildContext context) {
     final periodDays = widget.dailyReports.where((r) {
       final d = DateTime(r.date.year, r.date.month, r.date.day);
-      return !d.isBefore(widget.period.start) &&
-          !d.isAfter(widget.period.end);
+      return !d.isBefore(widget.period.start) && !d.isAfter(widget.period.end);
     }).toList();
 
     final isWeek = widget.period.id.startsWith('week');
@@ -1781,7 +1777,9 @@ class _PeriodDetailScreenState extends State<PeriodDetailScreen> {
             Text(
               widget.period.subtitle,
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -1795,7 +1793,9 @@ class _PeriodDetailScreenState extends State<PeriodDetailScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.picture_as_pdf_rounded),
           ),
@@ -1828,8 +1828,7 @@ class _PeriodDetailScreenState extends State<PeriodDetailScreen> {
                 _DailyReportCard(
                   report: report,
                   lesson: widget.lesson,
-                  isToday: DateUtils.isSameDay(
-                      report.date, DateTime.now()),
+                  isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                 ),
 
             // ===== ملخص الفترة في النهاية =====
@@ -1886,8 +1885,11 @@ class _PeriodSummaryCard extends StatelessWidget {
                   gradient: AppColors.goldGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.insights_rounded,
-                    color: Colors.white, size: 23),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: Colors.white,
+                  size: 23,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1913,14 +1915,18 @@ class _PeriodSummaryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.format_list_numbered_rounded,
-                    color: AppColors.primaryDark, size: 20),
+                const Icon(
+                  Icons.format_list_numbered_rounded,
+                  color: AppColors.primaryDark,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'المنجز من الدرس',
-                    style: textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Text(
@@ -1939,9 +1945,12 @@ class _PeriodSummaryCard extends StatelessWidget {
           // نسبة إنجاز الدرس
           Row(
             children: [
-              Text('نسبة إنجاز الدرس',
-                  style: textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                'نسبة إنجاز الدرس',
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               Text(
                 '${(report.completionRate * 100).round()}%',
@@ -1960,16 +1969,14 @@ class _PeriodSummaryCard extends StatelessWidget {
               value: report.completionRate,
               minHeight: 9,
               backgroundColor: AppColors.lineSoft,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                  AppColors.gold),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
             ),
           ),
 
           // نسب حضور الطلاب
           if (rates.isNotEmpty) ...[
             const SizedBox(height: 18),
-            Text('نسبة حضور الطلاب خلال الفترة',
-                style: textTheme.titleSmall),
+            Text('نسبة حضور الطلاب خلال الفترة', style: textTheme.titleSmall),
             const SizedBox(height: 10),
             for (final entry in rates)
               Padding(
@@ -1992,9 +1999,9 @@ class _PeriodSummaryCard extends StatelessWidget {
                           value: entry.value,
                           minHeight: 8,
                           backgroundColor: AppColors.lineSoft,
-                          valueColor:
-                              const AlwaysStoppedAnimation<Color>(
-                                  AppColors.success),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.success,
+                          ),
                         ),
                       ),
                     ),
@@ -2094,8 +2101,11 @@ class _MutunTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 11),
-                const Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 13, color: AppColors.inkMuted),
+                const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 13,
+                  color: AppColors.inkMuted,
+                ),
               ],
             ),
           ),
@@ -2165,9 +2175,7 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
     DateTime? date,
   ) {
     if (date == null) return reports;
-    return reports
-        .where((r) => DateUtils.isSameDay(r.date, date))
-        .toList();
+    return reports.where((r) => DateUtils.isSameDay(r.date, date)).toList();
   }
 
   @override
@@ -2213,7 +2221,9 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
             Text(
               '${widget.teacherName} • ${widget.pathwayName}',
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -2250,8 +2260,9 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
               return ErrorState(
                 message: 'حدث خطأ أثناء تحميل التقرير',
                 onRetry: () => setState(() {
-                  _future = widget.reportsService
-                      .buildMutunDailyReports(widget.matna);
+                  _future = widget.reportsService.buildMutunDailyReports(
+                    widget.matna,
+                  );
                 }),
               );
             }
@@ -2302,7 +2313,9 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primarySurface,
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -2310,8 +2323,11 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.filter_alt_rounded,
-                            size: 18, color: AppColors.primary),
+                        const Icon(
+                          Icons.filter_alt_rounded,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -2323,8 +2339,7 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () =>
-                              setState(() => _searchDate = null),
+                          onPressed: () => setState(() => _searchDate = null),
                           child: const Text('عرض الكل'),
                         ),
                       ],
@@ -2350,14 +2365,12 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
                 else
                   for (final report in visibleReports)
                     _ActivityDayCard(
-                      key: _dayKeys[DateFormat('y-M-d')
-                          .format(report.date)],
+                      key: _dayKeys[DateFormat('y-M-d').format(report.date)],
                       report: report,
                       unitLabel: widget.matna.unitLabel,
                       completionLabel: 'حفظ تام',
                       title: widget.matna.name,
-                      isToday: DateUtils.isSameDay(
-                          report.date, DateTime.now()),
+                      isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                     ),
 
                 // ===== التقارير الأسبوعية =====
@@ -2448,10 +2461,10 @@ class _MutunProgressCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: data.progress,
                     minHeight: 9,
-                    backgroundColor:
-                        Colors.white.withValues(alpha: 0.25),
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                        Colors.white),
+                      Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -2541,7 +2554,9 @@ class _ActivityDayCard extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: isToday
                             ? AppColors.primarySurface
@@ -2562,7 +2577,9 @@ class _ActivityDayCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           gradient: AppColors.goldGradient,
                           borderRadius: BorderRadius.circular(20),
@@ -2578,10 +2595,11 @@ class _ActivityDayCard extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
-                    Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 14,
-                        color:
-                            AppColors.inkMuted.withValues(alpha: 0.6)),
+                    Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 14,
+                      color: AppColors.inkMuted.withValues(alpha: 0.6),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -2643,8 +2661,7 @@ class _ActivityDayDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final dateText =
-        DateFormat('EEEE، d MMMM y', 'ar').format(report.date);
+    final dateText = DateFormat('EEEE، d MMMM y', 'ar').format(report.date);
 
     return Scaffold(
       appBar: AppBar(
@@ -2655,7 +2672,9 @@ class _ActivityDayDetailScreen extends StatelessWidget {
             Text(
               dateText,
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -2676,8 +2695,7 @@ class _ActivityDayDetailScreen extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: textTheme.titleMedium
-                        ?.copyWith(color: Colors.white),
+                    style: textTheme.titleMedium?.copyWith(color: Colors.white),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -2719,13 +2737,17 @@ class _ActivityDayDetailScreen extends StatelessWidget {
                         InitialAvatar(name: entry.studentName, radius: 20),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(entry.studentName,
-                              style: textTheme.titleSmall),
+                          child: Text(
+                            entry.studentName,
+                            style: textTheme.titleSmall,
+                          ),
                         ),
                         if (entry.completesTotal)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               gradient: AppColors.goldGradient,
                               borderRadius: BorderRadius.circular(20),
@@ -2733,9 +2755,10 @@ class _ActivityDayDetailScreen extends StatelessWidget {
                             child: Text(
                               completionLabel,
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.bold),
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                       ],
@@ -2743,8 +2766,11 @@ class _ActivityDayDetailScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Icon(Icons.linear_scale_rounded,
-                            size: 16, color: AppColors.primary),
+                        const Icon(
+                          Icons.linear_scale_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -2758,29 +2784,30 @@ class _ActivityDayDetailScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (entry.notes != null &&
-                        entry.notes!.isNotEmpty) ...[
+                    if (entry.notes != null && entry.notes!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceAlt,
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.sm),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.notes_rounded,
-                                size: 15, color: AppColors.inkMuted),
+                            const Icon(
+                              Icons.notes_rounded,
+                              size: 15,
+                              color: AppColors.inkMuted,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 entry.notes!,
                                 style: textTheme.bodySmall?.copyWith(
-                                    color: AppColors.inkSecondary),
+                                  color: AppColors.inkSecondary,
+                                ),
                               ),
                             ),
                           ],
@@ -2823,9 +2850,9 @@ class _ActivityPeriodCardTile extends StatelessWidget {
     final attendancePct = report.attendanceRates.values.isEmpty
         ? 0
         : (report.attendanceRates.values.fold(0.0, (s, v) => s + v) /
-                report.attendanceRates.length *
-                100)
-            .round();
+                  report.attendanceRates.length *
+                  100)
+              .round();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -2833,9 +2860,7 @@ class _ActivityPeriodCardTile extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: period.isCurrent
-              ? AppColors.gold
-              : AppColors.lineSoft,
+          color: period.isCurrent ? AppColors.gold : AppColors.lineSoft,
           width: period.isCurrent ? 1.6 : 1,
         ),
       ),
@@ -2887,18 +2912,21 @@ class _ActivityPeriodCardTile extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(period.title,
-                                style: textTheme.titleSmall),
+                            child: Text(
+                              period.title,
+                              style: textTheme.titleSmall,
+                            ),
                           ),
                           if (period.isCurrent) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 gradient: AppColors.goldGradient,
-                                borderRadius:
-                                    BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: const Text(
                                 'جديد',
@@ -2913,8 +2941,7 @@ class _ActivityPeriodCardTile extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(period.subtitle,
-                          style: textTheme.bodySmall),
+                      Text(period.subtitle, style: textTheme.bodySmall),
                       const SizedBox(height: 5),
                       Text(
                         'المنجز: ${fmtNum(report.unitsAccomplished)} $unitLabel • الحضور: $attendancePct%',
@@ -2926,10 +2953,11 @@ class _ActivityPeriodCardTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 13,
-                    color: AppColors.inkMuted
-                        .withValues(alpha: 0.6)),
+                Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 13,
+                  color: AppColors.inkMuted.withValues(alpha: 0.6),
+                ),
               ],
             ),
           ),
@@ -2958,8 +2986,11 @@ class _ActivityPeriodDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final start =
-        DateTime(period.start.year, period.start.month, period.start.day);
+    final start = DateTime(
+      period.start.year,
+      period.start.month,
+      period.start.day,
+    );
     final end = DateTime(period.end.year, period.end.month, period.end.day);
     final periodDays = days
         .where((r) => !r.date.isBefore(start) && !r.date.isAfter(end))
@@ -2976,7 +3007,9 @@ class _ActivityPeriodDetailScreen extends StatelessWidget {
             Text(
               period.subtitle,
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -3010,8 +3043,7 @@ class _ActivityPeriodDetailScreen extends StatelessWidget {
                   unitLabel: unitLabel,
                   completionLabel: completionLabel,
                   title: title,
-                  isToday: DateUtils.isSameDay(
-                      report.date, DateTime.now()),
+                  isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                 ),
 
             // ===== ملخص الفترة في النهاية =====
@@ -3020,10 +3052,7 @@ class _ActivityPeriodDetailScreen extends StatelessWidget {
               title: isWeek ? 'ملخص الأسبوع' : 'ملخص الشهر',
               subtitle: 'المنجز + نسب المشاركة',
             ),
-            _ActivityPeriodSummaryCard(
-              period: period,
-              unitLabel: unitLabel,
-            ),
+            _ActivityPeriodSummaryCard(period: period, unitLabel: unitLabel),
           ],
         ),
       ),
@@ -3075,8 +3104,11 @@ class _ActivityPeriodSummaryCard extends StatelessWidget {
                   gradient: AppColors.goldGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.insights_rounded,
-                    color: Colors.white, size: 23),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: Colors.white,
+                  size: 23,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3102,14 +3134,18 @@ class _ActivityPeriodSummaryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.format_list_numbered_rounded,
-                    color: AppColors.primaryDark, size: 20),
+                const Icon(
+                  Icons.format_list_numbered_rounded,
+                  color: AppColors.primaryDark,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'المنجز خلال الفترة',
-                    style: textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Text(
@@ -3130,8 +3166,9 @@ class _ActivityPeriodSummaryCard extends StatelessWidget {
             children: [
               Text(
                 'عدد التسجيلات',
-                style: textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const Spacer(),
               Text(
@@ -3148,8 +3185,7 @@ class _ActivityPeriodSummaryCard extends StatelessWidget {
           // نسب مشاركة الطلاب
           if (rates.isNotEmpty) ...[
             const SizedBox(height: 18),
-            Text('نسبة مشاركة الطلاب خلال الفترة',
-                style: textTheme.titleSmall),
+            Text('نسبة مشاركة الطلاب خلال الفترة', style: textTheme.titleSmall),
             const SizedBox(height: 10),
             for (final entry in rates)
               Padding(
@@ -3172,9 +3208,9 @@ class _ActivityPeriodSummaryCard extends StatelessWidget {
                           value: entry.value,
                           minHeight: 8,
                           backgroundColor: AppColors.lineSoft,
-                          valueColor:
-                              const AlwaysStoppedAnimation<Color>(
-                                  AppColors.success),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.success,
+                          ),
                         ),
                       ),
                     ),
@@ -3225,17 +3261,20 @@ class _TeacherAbsenceSection extends StatelessWidget {
         children: [
           // رأس القسم
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.errorSurface,
               borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.lg)),
+                top: Radius.circular(AppRadius.lg),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.event_busy_rounded,
-                    color: AppColors.error, size: 20),
+                const Icon(
+                  Icons.event_busy_rounded,
+                  color: AppColors.error,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -3248,7 +3287,9 @@ class _TeacherAbsenceSection extends StatelessWidget {
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 3),
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.error,
                     borderRadius: BorderRadius.circular(999),
@@ -3271,8 +3312,9 @@ class _TeacherAbsenceSection extends StatelessWidget {
             child: absences.isEmpty
                 ? Text(
                     'لا يوجد غياب — سجّل المعلم دروسه في كل الأيام المتوقعة',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: AppColors.inkMuted),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkMuted,
+                    ),
                   )
                 : Column(
                     children: [
@@ -3281,13 +3323,17 @@ class _TeacherAbsenceSection extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 5),
                           child: Row(
                             children: [
-                              const Icon(Icons.remove_circle_outline,
-                                  size: 15, color: AppColors.error),
+                              const Icon(
+                                Icons.remove_circle_outline,
+                                size: 15,
+                                color: AppColors.error,
+                              ),
                               const SizedBox(width: 7),
                               Text(
                                 '${a.weekdayLabel}، ${DateFormat('d/M/y', 'ar').format(a.date)}',
                                 style: textTheme.bodySmall?.copyWith(
-                                    color: AppColors.inkSecondary),
+                                  color: AppColors.inkSecondary,
+                                ),
                               ),
                               const Spacer(),
                               const Text(
@@ -3304,8 +3350,9 @@ class _TeacherAbsenceSection extends StatelessWidget {
                       if (absences.length > 30)
                         Text(
                           '… و${absences.length - 30} يومًا أقدم',
-                          style: textTheme.bodySmall
-                              ?.copyWith(color: AppColors.inkMuted),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppColors.inkMuted,
+                          ),
                         ),
                     ],
                   ),
@@ -3315,7 +3362,6 @@ class _TeacherAbsenceSection extends StatelessWidget {
     );
   }
 }
-
 
 // ============================================================================
 // ==================== تدفق تقارير الطلاب (التبويب الثاني) ====================
@@ -3352,8 +3398,7 @@ class PathwayStudentsScreen extends StatelessWidget {
             Text(pathway.name),
             Text(
               'طلاب القسم وتقارير المتون',
-              style:
-                  TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -3361,8 +3406,9 @@ class PathwayStudentsScreen extends StatelessWidget {
       body: WatermarkedBackground(
         child: StreamBuilder<List<Student>>(
           // شرط واحد فقط (pathwayId) — يجلب طلاب كل المعلمين في القسم
-          stream: studentsService
-              .watchPathwayStudentsForAdmin(pathwayId: pathway.id),
+          stream: studentsService.watchPathwayStudentsForAdmin(
+            pathwayId: pathway.id,
+          ),
           builder: (context, studentsSnap) {
             if (studentsSnap.hasError) {
               return ErrorState(
@@ -3380,8 +3426,7 @@ class PathwayStudentsScreen extends StatelessWidget {
               return EmptyState(
                 icon: Icons.school_outlined,
                 title: 'لا يوجد طلاب في هذا القسم',
-                message:
-                    'لم يُضف أي طالب إلى "${pathway.name}" بعد',
+                message: 'لم يُضف أي طالب إلى "${pathway.name}" بعد',
               );
             }
 
@@ -3390,20 +3435,16 @@ class PathwayStudentsScreen extends StatelessWidget {
               stream: teachersService.watchTeachers(),
               builder: (context, teachersSnap) {
                 final teachers = teachersSnap.data ?? [];
-                final teacherNames = {
-                  for (final t in teachers) t.uid: t.name,
-                };
+                final teacherNames = {for (final t in teachers) t.uid: t.name};
 
                 return ListView.builder(
-                  padding:
-                      const EdgeInsets.only(top: 8, bottom: 24),
+                  padding: const EdgeInsets.only(top: 8, bottom: 24),
                   itemCount: students.length,
                   itemBuilder: (context, index) {
                     final student = students[index];
                     return _StudentReportTile(
                       student: student,
-                      teacherName:
-                          teacherNames[student.teacherId] ?? 'معلم',
+                      teacherName: teacherNames[student.teacherId] ?? 'معلم',
                       pathway: pathway,
                       studentsService: studentsService,
                       reportsService: reportsService,
@@ -3485,21 +3526,22 @@ class _StudentReportTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(student.name,
-                          style: textTheme.titleSmall),
+                      Text(student.name, style: textTheme.titleSmall),
                       const SizedBox(height: 3),
                       Text(
                         'المعلم: $teacherName',
                         style: textTheme.bodySmall?.copyWith(
-                            color: AppColors.inkSecondary),
+                          color: AppColors.inkSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 14,
-                    color:
-                        AppColors.inkMuted.withValues(alpha: 0.6)),
+                Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 14,
+                  color: AppColors.inkMuted.withValues(alpha: 0.6),
+                ),
               ],
             ),
           ),
@@ -3543,8 +3585,7 @@ class StudentMutunScreen extends StatelessWidget {
             Text(student.name),
             Text(
               'المتون المسجلة للطالب — $teacherName',
-              style:
-                  TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -3552,8 +3593,11 @@ class StudentMutunScreen extends StatelessWidget {
       body: WatermarkedBackground(
         child: StreamBuilder<List<MutunRecording>>(
           // كل تسجيلات الطالب — شرط واحد (studentId) + تجميع حسب المتن محليًا
+          // التقارير الرسمية: تسجيلات المتون الرسمية فقط
           stream: mutunService.watchStudentRecordings(
-              studentId: student.id),
+            studentId: student.id,
+            officialOnly: true,
+          ),
           builder: (context, recSnap) {
             if (recSnap.hasError) {
               return ErrorState(
@@ -3577,8 +3621,7 @@ class StudentMutunScreen extends StatelessWidget {
               return EmptyState(
                 icon: Icons.menu_book_outlined,
                 title: 'لا توجد متون مسجلة',
-                message:
-                    'لم يسجّل المعلم أي حفظ للمتن لهذا الطالب بعد',
+                message: 'لم يسجّل المعلم أي حفظ للمتن لهذا الطالب بعد',
               );
             }
 
@@ -3587,23 +3630,18 @@ class StudentMutunScreen extends StatelessWidget {
               stream: reportsService.watchPathwayMutun(pathway.id),
               builder: (context, matnaSnap) {
                 final matnaList = matnaSnap.data ?? [];
-                final matnaById = {
-                  for (final m in matnaList) m.id: m,
-                };
+                final matnaById = {for (final m in matnaList) m.id: m};
 
                 // المتون التي لها تسجيلات فقط
                 final matnaIds = byMatna.keys.toList()
                   ..sort((a, b) {
-                    final an =
-                        (matnaById[a]?.name) ?? 'م';
-                    final bn =
-                        (matnaById[b]?.name) ?? 'م';
+                    final an = (matnaById[a]?.name) ?? 'م';
+                    final bn = (matnaById[b]?.name) ?? 'م';
                     return an.compareTo(bn);
                   });
 
                 return ListView.builder(
-                  padding:
-                      const EdgeInsets.fromLTRB(12, 10, 12, 24),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
                   itemCount: matnaIds.length,
                   itemBuilder: (context, index) {
                     final matnaId = matnaIds[index];
@@ -3712,15 +3750,15 @@ class _StudentMatnaTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
-                          Icons.auto_stories_rounded,
-                          color: Colors.white,
-                          size: 22),
+                        Icons.auto_stories_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(name, style: textTheme.titleSmall),
                           const SizedBox(height: 2),
@@ -3743,7 +3781,9 @@ class _StudentMatnaTile extends StatelessWidget {
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primarySurface,
                         borderRadius: BorderRadius.circular(20),
@@ -3793,8 +3833,7 @@ class StudentMatnaReportScreen extends StatefulWidget {
       _StudentMatnaReportScreenState();
 }
 
-class _StudentMatnaReportScreenState
-    extends State<StudentMatnaReportScreen> {
+class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
   List<QuranRecording>? _quranRecordings;
 
   @override
@@ -3805,14 +3844,21 @@ class _StudentMatnaReportScreenState
   }
 
   void _loadQuran() {
+    // التقارير الرسمية: الأوراد الرسمية فقط
     widget.quranService
-        .watchStudentRecordings(studentId: widget.student.id)
-        .listen((list) {
-      if (mounted) setState(() => _quranRecordings = list);
-    }, onError: (Object e) {
-      // القرآن عرض إضافي — لا يُفشل التقرير
-      if (mounted) setState(() => _quranRecordings = []);
-    });
+        .watchStudentRecordings(
+          studentId: widget.student.id,
+          officialOnly: true,
+        )
+        .listen(
+          (list) {
+            if (mounted) setState(() => _quranRecordings = list);
+          },
+          onError: (Object e) {
+            // القرآن عرض إضافي — لا يُفشل التقرير
+            if (mounted) setState(() => _quranRecordings = []);
+          },
+        );
   }
 
   // ===== منطق إظهار البطاقة الصفراء: الجمعة 6 صباحاً أو بعدها =====
@@ -3823,7 +3869,13 @@ class _StudentMatnaReportScreenState
   bool _isWeekCardVisible(DateTime weekEnd) {
     final now = DateTime.now();
     final endOfDay = DateTime(
-        weekEnd.year, weekEnd.month, weekEnd.day, 23, 59, 59);
+      weekEnd.year,
+      weekEnd.month,
+      weekEnd.day,
+      23,
+      59,
+      59,
+    );
     // أسبوع انتهى بالكامل قبل الآن → مرئي دائماً
     if (now.isAfter(endOfDay)) return true;
     // الأسبوع الجاري — يظهر فقط الجمعة الساعة 6 صباحاً أو بعدها
@@ -3835,7 +3887,13 @@ class _StudentMatnaReportScreenState
   bool _isMonthCardVisible(DateTime monthEnd) {
     final now = DateTime.now();
     final endOfDay = DateTime(
-        monthEnd.year, monthEnd.month, monthEnd.day, 23, 59, 59);
+      monthEnd.year,
+      monthEnd.month,
+      monthEnd.day,
+      23,
+      59,
+      59,
+    );
     return now.isAfter(endOfDay);
   }
 
@@ -3845,8 +3903,7 @@ class _StudentMatnaReportScreenState
     final matna = widget.matna;
     final name = matna?.name ?? 'متن';
     final unitLabel = matna?.unitLabel ?? 'بيت';
-    final totalCount =
-        (matna?.totalCount ?? 0).toDouble();
+    final totalCount = (matna?.totalCount ?? 0).toDouble();
 
     final recordings = [...widget.recordings]
       // الأحدث أولاً — الأقدم في الأسفل
@@ -3867,9 +3924,7 @@ class _StudentMatnaReportScreenState
               Text(name),
               Text(
                 widget.student.name,
-                style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.inkSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
               ),
             ],
           ),
@@ -3886,56 +3941,66 @@ class _StudentMatnaReportScreenState
     final items = <Widget>[];
 
     // ترويسة المتن
-    items.add(Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_stories_rounded,
-                  color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  name,
-                  style: textTheme.titleMedium?.copyWith(
+    items.add(
+      Container(
+        margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: AppColors.primaryGradient,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.auto_stories_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: textTheme.titleMedium?.copyWith(
                       color: Colors.white,
-                      fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  matna?.typeLabel ?? 'نظم',
-                  style: const TextStyle(
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    matna?.typeLabel ?? 'نظم',
+                    style: const TextStyle(
                       fontSize: 10.5,
                       color: Colors.white,
-                      fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'الطالب: ${widget.student.name}',
-            style: TextStyle(
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'الطالب: ${widget.student.name}',
+              style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.9)),
-          ),
-        ],
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
 
     // ===== تجميع التسجيلات حسب اليوم =====
     final byDay = <DateTime, List<MutunRecording>>{};
@@ -3950,12 +4015,12 @@ class _StudentMatnaReportScreenState
     final weekCards = <_YellowPeriodInfo>[];
     if (days.isNotEmpty) {
       var weekStart = days.last.subtract(
-          Duration(days: (days.last.weekday % 7)));
+        Duration(days: (days.last.weekday % 7)),
+      );
       int weekNumber = 1;
       // عدّ الأسابيع من أول تسجيل لترقيم صحيح
       final firstDate = days.last;
-      var ws = firstDate.subtract(
-          Duration(days: (firstDate.weekday % 7)));
+      var ws = firstDate.subtract(Duration(days: (firstDate.weekday % 7)));
       int n = 1;
       while (!ws.isAfter(days.first)) {
         ws = ws.add(const Duration(days: 7));
@@ -3964,24 +4029,22 @@ class _StudentMatnaReportScreenState
       weekNumber = n - 1;
 
       while (!weekStart.isAfter(days.first)) {
-        final weekEnd =
-            weekStart.add(const Duration(days: 6));
+        final weekEnd = weekStart.add(const Duration(days: 6));
         final recsInWeek = recordings.where((r) {
-          final d = DateTime(
-              r.date.year, r.date.month, r.date.day);
-          return !d.isBefore(weekStart) &&
-              !d.isAfter(weekEnd);
+          final d = DateTime(r.date.year, r.date.month, r.date.day);
+          return !d.isBefore(weekStart) && !d.isAfter(weekEnd);
         }).toList();
 
-        if (recsInWeek.isNotEmpty &&
-            _isWeekCardVisible(weekEnd)) {
-          weekCards.add(_YellowPeriodInfo(
-            start: weekStart,
-            end: weekEnd,
-            recordings: recsInWeek,
-            title: 'الأسبوع $weekNumber',
-            isWeek: true,
-          ));
+        if (recsInWeek.isNotEmpty && _isWeekCardVisible(weekEnd)) {
+          weekCards.add(
+            _YellowPeriodInfo(
+              start: weekStart,
+              end: weekEnd,
+              recordings: recsInWeek,
+              title: 'الأسبوع $weekNumber',
+              isWeek: true,
+            ),
+          );
         }
 
         weekStart = weekStart.add(const Duration(days: 7));
@@ -3993,29 +4056,28 @@ class _StudentMatnaReportScreenState
     final monthCards = <_YellowPeriodInfo>[];
     if (days.isNotEmpty) {
       var cursor = DateTime(days.last.year, days.last.month);
-      while (!cursor.isAfter(
-          DateTime(days.first.year, days.first.month))) {
-        final monthStart =
-            DateTime(cursor.year, cursor.month);
-        final monthEnd = DateTime(cursor.year, cursor.month + 1)
-            .subtract(const Duration(days: 1));
+      while (!cursor.isAfter(DateTime(days.first.year, days.first.month))) {
+        final monthStart = DateTime(cursor.year, cursor.month);
+        final monthEnd = DateTime(
+          cursor.year,
+          cursor.month + 1,
+        ).subtract(const Duration(days: 1));
         final recsInMonth = recordings.where((r) {
-          final d = DateTime(
-              r.date.year, r.date.month, r.date.day);
-          return !d.isBefore(monthStart) &&
-              !d.isAfter(monthEnd);
+          final d = DateTime(r.date.year, r.date.month, r.date.day);
+          return !d.isBefore(monthStart) && !d.isAfter(monthEnd);
         }).toList();
 
-        if (recsInMonth.isNotEmpty &&
-            _isMonthCardVisible(monthEnd)) {
-          monthCards.add(_YellowPeriodInfo(
-            start: monthStart,
-            end: monthEnd,
-            recordings: recsInMonth,
-            title:
-                'شهر ${_monthArabicName(monthStart.month)} ${monthStart.year}',
-            isWeek: false,
-          ));
+        if (recsInMonth.isNotEmpty && _isMonthCardVisible(monthEnd)) {
+          monthCards.add(
+            _YellowPeriodInfo(
+              start: monthStart,
+              end: monthEnd,
+              recordings: recsInMonth,
+              title:
+                  'شهر ${_monthArabicName(monthStart.month)} ${monthStart.year}',
+              isWeek: false,
+            ),
+          );
         }
 
         cursor = DateTime(cursor.year, cursor.month + 1);
@@ -4028,8 +4090,7 @@ class _StudentMatnaReportScreenState
     // خريطة: تاريخ نهاية الفترة ← البطاقات المنتهية في ذلك اليوم
     final yellowByEndDay = <DateTime, List<_YellowPeriodInfo>>{};
     for (final p in allPeriods) {
-      final key = DateTime(
-          p.end.year, p.end.month, p.end.day);
+      final key = DateTime(p.end.year, p.end.month, p.end.day);
       yellowByEndDay.putIfAbsent(key, () => []).add(p);
     }
 
@@ -4038,38 +4099,42 @@ class _StudentMatnaReportScreenState
       final yellows = yellowByEndDay[day];
       if (yellows != null) {
         for (final y in yellows) {
-          items.add(_YellowPeriodCard(
-            info: y,
-            unitLabel: unitLabel,
-            totalCount: totalCount,
-            student: widget.student,
-            quranRecordings: _quranRecordings,
-          ));
+          items.add(
+            _YellowPeriodCard(
+              info: y,
+              unitLabel: unitLabel,
+              totalCount: totalCount,
+              student: widget.student,
+              quranRecordings: _quranRecordings,
+            ),
+          );
         }
       }
 
       // البطاقة اليومية
       final dayRecs = byDay[day]!;
-      items.add(_StudentDailyCard(
-        date: day,
-        recordings: dayRecs,
-        unitLabel: unitLabel,
-        totalCount: totalCount,
-        student: widget.student,
-        quranRecordings: _quranRecordings,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => _StudentDayChartsScreen(
-              date: day,
-              recordings: dayRecs,
-              matna: widget.matna,
-              student: widget.student,
-              quranRecordings: _quranRecordings,
+      items.add(
+        _StudentDailyCard(
+          date: day,
+          recordings: dayRecs,
+          unitLabel: unitLabel,
+          totalCount: totalCount,
+          student: widget.student,
+          quranRecordings: _quranRecordings,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _StudentDayChartsScreen(
+                date: day,
+                recordings: dayRecs,
+                matna: widget.matna,
+                student: widget.student,
+                quranRecordings: _quranRecordings,
+              ),
             ),
           ),
         ),
-      ));
+      );
     }
 
     return Scaffold(
@@ -4080,9 +4145,7 @@ class _StudentMatnaReportScreenState
             Text(name),
             Text(
               '${widget.student.name} — بطاقات التسجيل',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -4098,9 +4161,18 @@ class _StudentMatnaReportScreenState
 
   static String _monthArabicName(int month) {
     const names = [
-      'يناير', 'فبراير', 'مارس', 'أبريل',
-      'مايو', 'يونيو', 'يوليو', 'أغسطس',
-      'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
     ];
     return names[month - 1];
   }
@@ -4152,17 +4224,14 @@ class _StudentDailyCard extends StatelessWidget {
     final isToday = _isSameDayLocal(date, DateTime.now());
 
     // حالة اليوم: غائب / لم يسمع / حاضر
-    final anyAbsent =
-        recordings.any((r) => r.isAbsent);
-    final anyNotListened =
-        recordings.any((r) => r.isNotListened);
-    final flagColor =
-        anyAbsent ? AppColors.error : AppColors.warning;
+    final anyAbsent = recordings.any((r) => r.isAbsent);
+    final anyNotListened = recordings.any((r) => r.isNotListened);
+    final flagColor = anyAbsent ? AppColors.error : AppColors.warning;
     final flagLabel = anyAbsent
         ? 'غائب'
         : anyNotListened
-            ? 'لم يسمع'
-            : null;
+        ? 'لم يسمع'
+        : null;
 
     // الورد القرآني لليوم
     final dayQuran = (quranRecordings ?? [])
@@ -4186,8 +4255,8 @@ class _StudentDailyCard extends StatelessWidget {
           color: flagLabel != null
               ? flagColor.withValues(alpha: 0.5)
               : isToday
-                  ? AppColors.primary
-                  : AppColors.lineSoft,
+              ? AppColors.primary
+              : AppColors.lineSoft,
           width: isToday || flagLabel != null ? 1.6 : 1,
         ),
       ),
@@ -4206,7 +4275,9 @@ class _StudentDailyCard extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: isToday
                             ? AppColors.primarySurface
@@ -4227,11 +4298,12 @@ class _StudentDailyCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           gradient: AppColors.goldGradient,
-                          borderRadius:
-                              BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
                           'اليوم',
@@ -4244,10 +4316,11 @@ class _StudentDailyCard extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
-                    Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 14,
-                        color: AppColors.inkMuted
-                            .withValues(alpha: 0.6)),
+                    Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 14,
+                      color: AppColors.inkMuted.withValues(alpha: 0.6),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -4256,19 +4329,16 @@ class _StudentDailyCard extends StatelessWidget {
                 if (flagLabel != null) ...[
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: flagColor.withValues(alpha: 0.1),
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(
-                          color:
-                              flagColor.withValues(alpha: 0.4)),
+                        color: flagColor.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           anyAbsent
@@ -4297,8 +4367,7 @@ class _StudentDailyCard extends StatelessWidget {
                     _MiniStat(
                       icon: Icons.format_list_numbered_rounded,
                       label: 'المنجز',
-                      value:
-                          '${fmtNum(units)} $unitLabel',
+                      value: '${fmtNum(units)} $unitLabel',
                       color: AppColors.primary,
                     ),
                     const SizedBox(width: 10),
@@ -4321,9 +4390,7 @@ class _StudentDailyCard extends StatelessWidget {
   }
 
   static bool _isSameDayLocal(DateTime a, DateTime b) {
-    return a.year == b.year &&
-        a.month == b.month &&
-        a.day == b.day;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
 
@@ -4347,10 +4414,8 @@ class _YellowPeriodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final startText =
-        DateFormat('d MMMM', 'ar').format(info.start);
-    final endText =
-        DateFormat('d MMMM y', 'ar').format(info.end);
+    final startText = DateFormat('d MMMM', 'ar').format(info.start);
+    final endText = DateFormat('d MMMM y', 'ar').format(info.end);
 
     // المنجز خلال الفترة (تجاهل الغياب/لم يسمع)
     final units = info.recordings
@@ -4361,26 +4426,33 @@ class _YellowPeriodCard extends StatelessWidget {
     final lastReached = info.recordings
         .where((r) => r.wasPresent)
         .fold(0.0, (max, r) => r.to > max ? r.to : max);
-    final remaining =
-        totalCount > 0 ? totalCount - lastReached : 0.0;
+    final remaining = totalCount > 0 ? totalCount - lastReached : 0.0;
 
     // الورد القرآني خلال الفترة
     final quranInPeriod = (quranRecordings ?? [])
-        .where((q) =>
-            !q.date.isBefore(DateTime(info.start.year,
-                info.start.month, info.start.day)) &&
-            !q.date.isAfter(DateTime(
-                info.end.year, info.end.month, info.end.day,
-                23, 59, 59)))
+        .where(
+          (q) =>
+              !q.date.isBefore(
+                DateTime(info.start.year, info.start.month, info.start.day),
+              ) &&
+              !q.date.isAfter(
+                DateTime(
+                  info.end.year,
+                  info.end.month,
+                  info.end.day,
+                  23,
+                  59,
+                  59,
+                ),
+              ),
+        )
         .toList();
     final quranPages = quranInPeriod.isEmpty
         ? 0.0
         : quranInPeriod.fold(0.0, (s, q) => s + q.count);
 
     // أيام الغياب خلال الفترة
-    final absentDays = info.recordings
-        .where((r) => r.isAbsent)
-        .length;
+    final absentDays = info.recordings.where((r) => r.isAbsent).length;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -4412,8 +4484,7 @@ class _YellowPeriodCard extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color:
-                            Colors.white.withValues(alpha: 0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -4427,8 +4498,7 @@ class _YellowPeriodCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'تقرير ${info.title}',
@@ -4441,8 +4511,7 @@ class _YellowPeriodCard extends StatelessWidget {
                             '$startText ← $endText',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.white
-                                  .withValues(alpha: 0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -4450,10 +4519,11 @@ class _YellowPeriodCard extends StatelessWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
-                        color:
-                            Colors.white.withValues(alpha: 0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -4471,17 +4541,15 @@ class _YellowPeriodCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color:
-                        Colors.white.withValues(alpha: 0.92),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Column(
                     children: [
                       _YellowStatRow(
-                        label: 'المنجز خلال ${info.isWeek ? 'الأسبوع' : 'الشهر'}',
-                        value:
-                            '${fmtNum(units)} $unitLabel',
+                        label:
+                            'المنجز خلال ${info.isWeek ? 'الأسبوع' : 'الشهر'}',
+                        value: '${fmtNum(units)} $unitLabel',
                         icon: Icons.task_alt_rounded,
                         color: AppColors.primary,
                       ),
@@ -4490,15 +4558,13 @@ class _YellowPeriodCard extends StatelessWidget {
                         label: 'المتبقي من المتن',
                         value:
                             '${fmtNum(remaining > 0 ? remaining : 0)} $unitLabel',
-                        icon:
-                            Icons.pending_actions_rounded,
+                        icon: Icons.pending_actions_rounded,
                         color: AppColors.goldDark,
                       ),
                       const SizedBox(height: 8),
                       _YellowStatRow(
                         label: 'الورد القرآني',
-                        value:
-                            '${fmtNum(quranPages)} صفحة',
+                        value: '${fmtNum(quranPages)} صفحة',
                         icon: Icons.menu_book_rounded,
                         color: AppColors.primary,
                       ),
@@ -4507,8 +4573,7 @@ class _YellowPeriodCard extends StatelessWidget {
                         _YellowStatRow(
                           label: 'أيام الغياب',
                           value: '$absentDays',
-                          icon:
-                              Icons.event_busy_rounded,
+                          icon: Icons.event_busy_rounded,
                           color: AppColors.error,
                         ),
                       ],
@@ -4530,11 +4595,12 @@ class _YellowPeriodCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _YellowPeriodDetailsSheet(
-          info: info,
-          unitLabel: unitLabel,
-          totalCount: totalCount,
-          student: student,
-          quranRecordings: quranRecordings),
+        info: info,
+        unitLabel: unitLabel,
+        totalCount: totalCount,
+        student: student,
+        quranRecordings: quranRecordings,
+      ),
     );
   }
 }
@@ -4564,7 +4630,9 @@ class _YellowStatRow extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-                fontSize: 12.5, color: AppColors.inkSecondary),
+              fontSize: 12.5,
+              color: AppColors.inkSecondary,
+            ),
           ),
         ),
         Text(
@@ -4607,11 +4675,9 @@ class _YellowPeriodDetailsSheet extends StatelessWidget {
     final lastReached = info.recordings
         .where((r) => r.wasPresent)
         .fold(0.0, (max, r) => r.to > max ? r.to : max);
-    final remaining =
-        totalCount > 0 ? totalCount - lastReached : 0.0;
+    final remaining = totalCount > 0 ? totalCount - lastReached : 0.0;
     final percent = totalCount > 0
-        ? ((lastReached / totalCount).clamp(0.0, 1.0) * 100)
-            .round()
+        ? ((lastReached / totalCount).clamp(0.0, 1.0) * 100).round()
         : 0;
 
     return Container(
@@ -4636,21 +4702,21 @@ class _YellowPeriodDetailsSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: const Icon(
-                      Icons.workspace_premium_rounded,
-                      color: Colors.white),
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('تقرير ${info.title}',
-                          style: textTheme.titleMedium),
+                      Text('تقرير ${info.title}', style: textTheme.titleMedium),
                       Text(
                         '${student.name} — ${DateFormat('d MMMM y', 'ar').format(info.start)} ← ${DateFormat('d MMMM y', 'ar').format(info.end)}',
                         style: textTheme.bodySmall?.copyWith(
-                            color: AppColors.inkSecondary),
+                          color: AppColors.inkSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -4689,25 +4755,23 @@ class _YellowPeriodDetailsSheet extends StatelessWidget {
             const SizedBox(height: 18),
 
             // قائمة أيام الفترة
-            Text('أيام الفترة:',
-                style: textTheme.titleSmall),
+            Text('أيام الفترة:', style: textTheme.titleSmall),
             const SizedBox(height: 8),
             ...info.recordings.map((r) {
-              final dateText =
-                  DateFormat('d MMMM y', 'ar')
-                      .format(r.date);
+              final dateText = DateFormat('d MMMM y', 'ar').format(r.date);
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: r.isAbsent
                       ? AppColors.errorSurface
                       : r.isNotListened
-                          ? AppColors.warningSurface
-                          : AppColors.surfaceAlt,
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.sm),
+                      ? AppColors.warningSurface
+                      : AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Row(
                   children: [
@@ -4717,15 +4781,14 @@ class _YellowPeriodDetailsSheet extends StatelessWidget {
                             ? Icons.event_busy_rounded
                             : Icons.hearing_disabled_rounded,
                         size: 16,
-                        color: r.isAbsent
-                            ? AppColors.error
-                            : AppColors.warning,
+                        color: r.isAbsent ? AppColors.error : AppColors.warning,
                       )
                     else
                       const Icon(
-                          Icons.check_circle_rounded,
-                          size: 16,
-                          color: AppColors.success),
+                        Icons.check_circle_rounded,
+                        size: 16,
+                        color: AppColors.success,
+                      ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -4741,16 +4804,16 @@ class _YellowPeriodDetailsSheet extends StatelessWidget {
                       r.isAbsent
                           ? 'غائب'
                           : r.isNotListened
-                              ? 'لم يسمع'
-                              : '${fmtNum(r.count)} $unitLabel',
+                          ? 'لم يسمع'
+                          : '${fmtNum(r.count)} $unitLabel',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: r.isAbsent
                             ? AppColors.error
                             : r.isNotListened
-                                ? AppColors.warning
-                                : AppColors.primary,
+                            ? AppColors.warning
+                            : AppColors.primary,
                       ),
                     ),
                   ],
@@ -4791,26 +4854,25 @@ class _StudentDayChartsScreen extends StatelessWidget {
 
     // ===== حالة اليوم =====
     final anyAbsent = recordings.any((r) => r.isAbsent);
-    final anyNotListened =
-        recordings.any((r) => r.isNotListened);
+    final anyNotListened = recordings.any((r) => r.isNotListened);
 
     // ===== الرسم الأول: المنجز / المتبقي =====
     final lastReached = recordings
         .where((r) => r.wasPresent)
         .fold(0.0, (max, r) => r.to > max ? r.to : max);
-    final remaining =
-        totalCount > 0 ? totalCount - lastReached : 0.0;
+    final remaining = totalCount > 0 ? totalCount - lastReached : 0.0;
     final progressPercent = totalCount > 0
-        ? ((lastReached / totalCount).clamp(0.0, 1.0) * 100)
-            .round()
+        ? ((lastReached / totalCount).clamp(0.0, 1.0) * 100).round()
         : 0;
 
     // ===== الرسم الثاني: الورد القرآني لليوم =====
     final dayQuran = (quranRecordings ?? [])
-        .where((q) =>
-            q.date.year == date.year &&
-            q.date.month == date.month &&
-            q.date.day == date.day)
+        .where(
+          (q) =>
+              q.date.year == date.year &&
+              q.date.month == date.month &&
+              q.date.day == date.day,
+        )
         .toList();
     final quranPages = dayQuran.isEmpty
         ? 0.0
@@ -4824,9 +4886,7 @@ class _StudentDayChartsScreen extends StatelessWidget {
             Text('رسم بياني للحفظ'),
             Text(
               '$weekday، $dateText',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -4842,33 +4902,28 @@ class _StudentDayChartsScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.lg),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Row(
                   children: [
-                    InitialAvatar(
-                        name: student.name, radius: 24),
+                    InitialAvatar(name: student.name, radius: 24),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             student.name,
-                            style: textTheme.titleMedium
-                                ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight:
-                                        FontWeight.bold),
+                            style: textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           Text(
                             matna?.name ?? 'متن',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white
-                                  .withValues(alpha: 0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -4887,14 +4942,11 @@ class _StudentDayChartsScreen extends StatelessWidget {
                     color: anyAbsent
                         ? AppColors.errorSurface
                         : AppColors.warningSurface,
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(
                       color: anyAbsent
-                          ? AppColors.error
-                              .withValues(alpha: 0.4)
-                          : AppColors.warning
-                              .withValues(alpha: 0.4),
+                          ? AppColors.error.withValues(alpha: 0.4)
+                          : AppColors.warning.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
@@ -4903,9 +4955,7 @@ class _StudentDayChartsScreen extends StatelessWidget {
                         anyAbsent
                             ? Icons.event_busy_rounded
                             : Icons.hearing_disabled_rounded,
-                        color: anyAbsent
-                            ? AppColors.error
-                            : AppColors.warning,
+                        color: anyAbsent ? AppColors.error : AppColors.warning,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -4945,17 +4995,13 @@ class _StudentDayChartsScreen extends StatelessWidget {
                           centerSpaceRadius: 52,
                           sections: [
                             PieChartSectionData(
-                              value: lastReached > 0
-                                  ? lastReached
-                                  : 0.0001,
+                              value: lastReached > 0 ? lastReached : 0.0001,
                               color: AppColors.primary,
                               radius: 16,
                               showTitle: false,
                             ),
                             PieChartSectionData(
-                              value: remaining > 0
-                                  ? remaining
-                                  : 0.0001,
+                              value: remaining > 0 ? remaining : 0.0001,
                               color: AppColors.lineSoft,
                               radius: 16,
                               showTitle: false,
@@ -4969,8 +5015,7 @@ class _StudentDayChartsScreen extends StatelessWidget {
                       children: [
                         Text(
                           '$progressPercent%',
-                          style: textTheme.headlineSmall
-                              ?.copyWith(
+                          style: textTheme.headlineSmall?.copyWith(
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
@@ -4978,25 +5023,27 @@ class _StudentDayChartsScreen extends StatelessWidget {
                         Text(
                           'منجز',
                           style: textTheme.bodySmall?.copyWith(
-                              color: AppColors.inkMuted),
+                            color: AppColors.inkMuted,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
                 legend: Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _LegendDot(
-                        color: AppColors.primary,
-                        label:
-                            'المنجز ${fmtNum(lastReached)} $unitLabel ($progressPercent%)'),
+                      color: AppColors.primary,
+                      label:
+                          'المنجز ${fmtNum(lastReached)} $unitLabel ($progressPercent%)',
+                    ),
                     const SizedBox(width: 16),
                     _LegendDot(
-                        color: AppColors.lineSoft,
-                        label:
-                            'المتبقي ${fmtNum(remaining > 0 ? remaining : 0)} $unitLabel (${100 - progressPercent}%)'),
+                      color: AppColors.lineSoft,
+                      label:
+                          'المتبقي ${fmtNum(remaining > 0 ? remaining : 0)} $unitLabel (${100 - progressPercent}%)',
+                    ),
                   ],
                 ),
               ),
@@ -5008,9 +5055,11 @@ class _StudentDayChartsScreen extends StatelessWidget {
                 subtitle: dayQuran.isEmpty
                     ? 'لا يوجد ورد مسجّل هذا اليوم'
                     : dayQuran
-                        .map((q) =>
-                            'صفحات ${fmtNum(q.fromPage)} ← ${fmtNum(q.toPage)}')
-                        .join(' • '),
+                          .map(
+                            (q) =>
+                                'صفحات ${fmtNum(q.fromPage)} ← ${fmtNum(q.toPage)}',
+                          )
+                          .join(' • '),
                 chart: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -5024,21 +5073,14 @@ class _StudentDayChartsScreen extends StatelessWidget {
                           centerSpaceRadius: 52,
                           sections: [
                             PieChartSectionData(
-                              value: quranPages > 0
-                                  ? quranPages
-                                  : 0.0001,
+                              value: quranPages > 0 ? quranPages : 0.0001,
                               color: AppColors.gold,
                               radius: 16,
                               showTitle: false,
                             ),
                             PieChartSectionData(
-                              value:
-                                  (AppConstants.khatmaPages -
-                                          quranPages) >
-                                      0
-                                  ? (AppConstants
-                                          .khatmaPages -
-                                      quranPages)
+                              value: (AppConstants.khatmaPages - quranPages) > 0
+                                  ? (AppConstants.khatmaPages - quranPages)
                                   : 0.0001,
                               color: AppColors.lineSoft,
                               radius: 16,
@@ -5053,8 +5095,7 @@ class _StudentDayChartsScreen extends StatelessWidget {
                       children: [
                         Text(
                           fmtNum(quranPages),
-                          style: textTheme.headlineSmall
-                              ?.copyWith(
+                          style: textTheme.headlineSmall?.copyWith(
                             color: AppColors.goldDark,
                             fontWeight: FontWeight.bold,
                           ),
@@ -5062,87 +5103,82 @@ class _StudentDayChartsScreen extends StatelessWidget {
                         Text(
                           'صفحة',
                           style: textTheme.bodySmall?.copyWith(
-                              color: AppColors.inkMuted),
+                            color: AppColors.inkMuted,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
                 legend: Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _LegendDot(
-                        color: AppColors.gold,
-                        label:
-                            'مسموع ${fmtNum(quranPages)} صفحة'),
+                      color: AppColors.gold,
+                      label: 'مسموع ${fmtNum(quranPages)} صفحة',
+                    ),
                     const SizedBox(width: 16),
                     _LegendDot(
-                        color: AppColors.lineSoft,
-                        label:
-                            'من أصل ${AppConstants.khatmaPages} صفحة (الختمة)'),
+                      color: AppColors.lineSoft,
+                      label: 'من أصل ${AppConstants.khatmaPages} صفحة (الختمة)',
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
 
               // تفاصيل التسجيلات اليومية
-              if (recordings
-                  .where((r) => r.wasPresent)
-                  .isNotEmpty) ...[
+              if (recordings.where((r) => r.wasPresent).isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(
-                        color: AppColors.lineSoft),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: AppColors.lineSoft),
                   ),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('تفاصيل الحفظ هذا اليوم',
-                          style: textTheme.titleSmall),
+                      Text(
+                        'تفاصيل الحفظ هذا اليوم',
+                        style: textTheme.titleSmall,
+                      ),
                       const SizedBox(height: 10),
                       ...recordings
                           .where((r) => r.wasPresent)
-                          .map((r) => Padding(
-                                padding: const EdgeInsets
-                                    .only(bottom: 6),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                        Icons
-                                            .check_circle_rounded,
-                                        size: 16,
-                                        color: AppColors
-                                            .success),
-                                    const SizedBox(
-                                        width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'من ${fmtNum(r.from)} إلى ${fmtNum(r.to)} (${fmtNum(r.count)} $unitLabel)',
-                                        style: const TextStyle(
-                                            fontSize: 12.5,
-                                            color: AppColors
-                                                .ink),
+                          .map(
+                            (r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 16,
+                                    color: AppColors.success,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'من ${fmtNum(r.from)} إلى ${fmtNum(r.to)} (${fmtNum(r.count)} $unitLabel)',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: AppColors.ink,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              )),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       if (notesOf(recordings) != null)
                         Padding(
-                          padding: const EdgeInsets.only(
-                              top: 4),
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             'ملاحظات: ${notesOf(recordings)}',
                             style: const TextStyle(
-                                fontSize: 11.5,
-                                color:
-                                    AppColors.inkMuted),
+                              fontSize: 11.5,
+                              color: AppColors.inkMuted,
+                            ),
                           ),
                         ),
                     ],
@@ -5194,14 +5230,14 @@ class _ChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title,
-              style: textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: textTheme.bodySmall
-                ?.copyWith(color: AppColors.inkMuted),
+            style: textTheme.bodySmall?.copyWith(color: AppColors.inkMuted),
           ),
           const SizedBox(height: 16),
           Center(child: chart),
@@ -5219,10 +5255,7 @@ class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
 
-  const _LegendDot({
-    required this.color,
-    required this.label,
-  });
+  const _LegendDot({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -5232,14 +5265,12 @@ class _LegendDot extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration:
-              BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(
-              fontSize: 11.5, color: AppColors.inkSecondary),
+          style: const TextStyle(fontSize: 11.5, color: AppColors.inkSecondary),
         ),
       ],
     );
