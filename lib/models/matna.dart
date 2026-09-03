@@ -10,6 +10,10 @@ class Matna {
   final int totalCount;
   final DateTime? createdAt;
 
+  /// هل المتن رسمي (أنشأه معلم المتون والأوراد المخصص)؟
+  /// القديم بلا علامة (null) = غير رسمي — لا يدخل التقارير الرسمية.
+  final bool isOfficial;
+
   const Matna({
     required this.id,
     required this.teacherId,
@@ -18,14 +22,14 @@ class Matna {
     required this.type,
     required this.totalCount,
     this.createdAt,
+    this.isOfficial = false,
   });
 
   bool get isNazm => type == 'nazm';
   String get unitLabel => isNazm ? 'بيت' : 'صفحة';
   String get typeLabel => isNazm ? 'نظم' : 'نثر';
 
-  factory Matna.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory Matna.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
     return Matna(
       id: doc.id,
@@ -35,6 +39,7 @@ class Matna {
       type: (data['type'] as String?) ?? 'nathr',
       totalCount: (data['totalCount'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      isOfficial: (data['isOfficial'] as bool?) ?? false,
     );
   }
 
@@ -45,6 +50,7 @@ class Matna {
       'name': name.trim(),
       'type': type,
       'totalCount': totalCount,
+      'isOfficial': isOfficial,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -66,7 +72,11 @@ class MutunRecording {
   final double count; // to - from + 1
   final String? notes;
   final DateTime? createdAt;
-  final String status; // 'present' | 'absent' | 'not_listened' — null/غير موجود = حاضر (توافق القديم)
+  final String
+  status; // 'present' | 'absent' | 'not_listened' — null/غير موجود = حاضر (توافق القديم)
+  /// هل التسجيل رسمي (سجّله معلم المتون والأوراد المخصص)؟
+  /// القديم بلا علامة (null) = غير رسمي — لا يدخل التقارير الرسمية.
+  final bool isOfficial;
 
   const MutunRecording({
     required this.id,
@@ -82,19 +92,21 @@ class MutunRecording {
     this.notes,
     this.createdAt,
     this.status = 'present',
+    this.isOfficial = false,
   });
 
   bool get isAbsent => status == 'absent';
   bool get isNotListened => status == 'not_listened';
   bool get wasPresent => !isAbsent && !isNotListened;
   String get statusLabel => switch (status) {
-        'absent' => 'غائب',
-        'not_listened' => 'لم يسمع',
-        _ => 'حاضر',
-      };
+    'absent' => 'غائب',
+    'not_listened' => 'لم يسمع',
+    _ => 'حاضر',
+  };
 
   factory MutunRecording.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? {};
     return MutunRecording(
       id: doc.id,
@@ -110,6 +122,7 @@ class MutunRecording {
       notes: data['notes'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       status: (data['status'] as String?) ?? 'present',
+      isOfficial: (data['isOfficial'] as bool?) ?? false,
     );
   }
 }

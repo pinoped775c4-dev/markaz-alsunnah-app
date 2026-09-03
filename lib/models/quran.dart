@@ -16,6 +16,10 @@ class QuranRecording {
   final String? notes;
   final DateTime? createdAt;
 
+  /// هل الورد رسمي (سجّله معلم المتون والأوراد المخصص)؟
+  /// القديم بلا علامة (null) = غير رسمي — لا يدخل التقارير الرسمية.
+  final bool isOfficial;
+
   const QuranRecording({
     required this.id,
     required this.teacherId,
@@ -28,13 +32,15 @@ class QuranRecording {
     required this.count,
     this.notes,
     this.createdAt,
+    this.isOfficial = false,
   });
 
   /// هل هذا التسجيل أتمّ الختمة؟
   bool get completesKhatma => toPage >= AppConstants.khatmaPages;
 
   factory QuranRecording.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? {};
     return QuranRecording(
       id: doc.id,
@@ -48,6 +54,7 @@ class QuranRecording {
       count: (data['count'] as num?)?.toDouble() ?? 0,
       notes: data['notes'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      isOfficial: (data['isOfficial'] as bool?) ?? false,
     );
   }
 
@@ -62,6 +69,7 @@ class QuranRecording {
       'toPage': toPage,
       'count': count,
       'notes': notes,
+      'isOfficial': isOfficial,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -100,8 +108,7 @@ class QuranProgressSummary {
 }
 
 /// تجميع سجلات طالب إلى ملخص تقدم
-QuranProgressSummary summarizeQuranProgress(
-    List<QuranRecording> recordings) {
+QuranProgressSummary summarizeQuranProgress(List<QuranRecording> recordings) {
   if (recordings.isEmpty) return QuranProgressSummary.empty;
 
   int currentPage = 0;
@@ -123,9 +130,8 @@ QuranProgressSummary summarizeQuranProgress(
       currentPage = 0;
     } else {
       if (r.toPage >= AppConstants.khatmaPages) khatmas++;
-      currentPage =
-          (r.toPage >= AppConstants.khatmaPages ? 0 : r.toPage)
-              .round();
+      currentPage = (r.toPage >= AppConstants.khatmaPages ? 0 : r.toPage)
+          .round();
     }
   }
 
