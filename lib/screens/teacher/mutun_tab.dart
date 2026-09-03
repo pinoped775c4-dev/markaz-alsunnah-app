@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/matna.dart';
 import '../../models/student.dart';
 import '../../services/mutun_service.dart';
+import '../../services/mutun_wird_service.dart';
 import '../../services/students_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -14,11 +15,7 @@ class MutunTab extends StatefulWidget {
   final PathwayInfo pathway;
   final String teacherId;
 
-  const MutunTab({
-    super.key,
-    required this.pathway,
-    required this.teacherId,
-  });
+  const MutunTab({super.key, required this.pathway, required this.teacherId});
 
   @override
   State<MutunTab> createState() => _MutunTabState();
@@ -28,6 +25,19 @@ class _MutunTabState extends State<MutunTab>
     with AutomaticKeepAliveClientMixin {
   final MutunService _mutunService = MutunService();
   final StudentsService _studentsService = StudentsService();
+  final MutunWirdService _wirdService = MutunWirdService();
+
+  /// هل المعلم الحالي هو معلم المتون والأوراد المخصص من الإدارة؟
+  /// (null = جارٍ التحقق من الإعداد)
+  bool? _isDesignated;
+
+  @override
+  void initState() {
+    super.initState();
+    _wirdService.isDesignated(widget.teacherId).then((v) {
+      if (mounted) setState(() => _isDesignated = v);
+    });
+  }
 
   @override
   bool get wantKeepAlive => true;
@@ -37,13 +47,17 @@ class _MutunTabState extends State<MutunTab>
     super.build(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'add_matna_${widget.pathway.id}',
-        onPressed: () => _showAddMatnaDialog(context),
-        icon: const Icon(Icons.playlist_add_rounded),
-        label: const Text('إضافة متن',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-      ),
+      floatingActionButton: _isDesignated == true
+          ? FloatingActionButton.extended(
+              heroTag: 'add_matna_${widget.pathway.id}',
+              onPressed: () => _showAddMatnaDialog(context),
+              icon: const Icon(Icons.playlist_add_rounded),
+              label: const Text(
+                'إضافة متن',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            )
+          : null,
       body: StreamBuilder<List<Matna>>(
         stream: _mutunService.watchPathwayMutun(
           teacherId: widget.teacherId,
@@ -65,10 +79,13 @@ class _MutunTabState extends State<MutunTab>
             return EmptyState(
               icon: Icons.auto_stories_rounded,
               title: 'لا توجد متون بعد',
-              message:
-                  'أضف متون هذا المسار لتتابع حفظ طلابك فيها\nمثال: متن الآجرومية، تحفة الأطفال...',
-              actionLabel: 'إضافة أول متن',
-              onAction: () => _showAddMatnaDialog(context),
+              message: _isDesignated == true
+                  ? 'أضف متون هذا المسار لتتابع حفظ طلابك فيها\nمثال: متن الآجرومية، تحفة الأطفال...'
+                  : 'السجلات الرسمية يُنشئها معلم المتون والأوراد\nالمخصص من الإدارة',
+              actionLabel: _isDesignated == true ? 'إضافة أول متن' : null,
+              onAction: _isDesignated == true
+                  ? () => _showAddMatnaDialog(context)
+                  : null,
             );
           }
 
@@ -166,16 +183,13 @@ class _MatnaCard extends StatelessWidget {
                     color: matna.isNazm
                         ? AppColors.goldSurface
                         : AppColors.primarySurface,
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.md),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Icon(
                     matna.isNazm
                         ? Icons.format_quote_rounded
                         : Icons.article_rounded,
-                    color: matna.isNazm
-                        ? AppColors.gold
-                        : AppColors.primary,
+                    color: matna.isNazm ? AppColors.gold : AppColors.primary,
                     size: 26,
                   ),
                 ),
@@ -204,10 +218,11 @@ class _MatnaCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 15,
-                    color:
-                        AppColors.inkMuted.withValues(alpha: 0.6)),
+                Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 15,
+                  color: AppColors.inkMuted.withValues(alpha: 0.6),
+                ),
               ],
             ),
           ),
@@ -292,7 +307,9 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
     if (result.success) {
       Navigator.pop(context);
       showSuccessSnackBar(
-          context, 'تمت إضافة المتن "${_nameController.text.trim()}"');
+        context,
+        'تمت إضافة المتن "${_nameController.text.trim()}"',
+      );
     } else {
       setState(() {
         _isLoading = false;
@@ -307,8 +324,7 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
     final isNazm = _type == 'nazm';
 
     return Dialog(
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: SingleChildScrollView(
@@ -328,18 +344,18 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                         gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.auto_stories_rounded,
-                          color: Colors.white),
+                      child: const Icon(
+                        Icons.auto_stories_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('إضافة متن جديد',
-                              style: textTheme.titleMedium),
-                          Text(widget.pathway.name,
-                              style: textTheme.bodySmall),
+                          Text('إضافة متن جديد', style: textTheme.titleMedium),
+                          Text(widget.pathway.name, style: textTheme.bodySmall),
                         ],
                       ),
                     ),
@@ -352,12 +368,14 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.errorSurface,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
-                    child: Text(_errorMessage!,
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: AppColors.error)),
+                    child: Text(
+                      _errorMessage!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
                 ],
@@ -367,8 +385,7 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                   decoration: const InputDecoration(
                     labelText: 'اسم المتن *',
                     hintText: 'مثال: متن الآجرومية',
-                    prefixIcon:
-                        Icon(Icons.auto_stories_outlined),
+                    prefixIcon: Icon(Icons.auto_stories_outlined),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'اسم المتن مطلوب'
@@ -387,8 +404,7 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                         subtitle: 'يُحسب بالأبيات',
                         icon: Icons.format_quote_rounded,
                         selected: _type == 'nazm',
-                        onTap: () =>
-                            setState(() => _type = 'nazm'),
+                        onTap: () => setState(() => _type = 'nazm'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -398,8 +414,7 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                         subtitle: 'يُحسب بالصفحات',
                         icon: Icons.article_rounded,
                         selected: _type == 'nathr',
-                        onTap: () =>
-                            setState(() => _type = 'nathr'),
+                        onTap: () => setState(() => _type = 'nathr'),
                       ),
                     ),
                   ],
@@ -410,10 +425,10 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                   controller: _totalController,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText:
-                        isNazm ? 'عدد الأبيات الإجمالي *' : 'عدد الصفحات الإجمالي *',
-                    prefixIcon: const Icon(
-                        Icons.format_list_numbered_rounded),
+                    labelText: isNazm
+                        ? 'عدد الأبيات الإجمالي *'
+                        : 'عدد الصفحات الإجمالي *',
+                    prefixIcon: const Icon(Icons.format_list_numbered_rounded),
                   ),
                   validator: (v) {
                     final n = int.tryParse(v?.trim() ?? '');
@@ -431,8 +446,7 @@ class _AddMatnaDialogState extends State<_AddMatnaDialog> {
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.transparent,
-                          side: const BorderSide(
-                              color: AppColors.line),
+                          side: const BorderSide(color: AppColors.line),
                           foregroundColor: AppColors.inkSecondary,
                         ),
                         onPressed: _isLoading
@@ -493,40 +507,31 @@ class _TypeTile extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primarySurface
-              : AppColors.surfaceAlt,
+          color: selected ? AppColors.primarySurface : AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: selected
-                ? AppColors.primary
-                : AppColors.lineSoft,
+            color: selected ? AppColors.primary : AppColors.lineSoft,
             width: selected ? 1.6 : 1,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon,
-                color: selected
-                    ? AppColors.primary
-                    : AppColors.inkMuted,
-                size: 24),
+            Icon(
+              icon,
+              color: selected ? AppColors.primary : AppColors.inkMuted,
+              size: 24,
+            ),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: selected
-                    ? AppColors.primaryDark
-                    : AppColors.ink,
+                color: selected ? AppColors.primaryDark : AppColors.ink,
               ),
             ),
             Text(
               subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.inkMuted,
-              ),
+              style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
             ),
           ],
         ),
@@ -551,6 +556,11 @@ class MatnaDetailScreen extends StatelessWidget {
     required this.studentsService,
   });
 
+  /// هل معلم هذا المتن هو معلم المتون والأوراد المخصص؟
+  Future<bool> _isDesignated() async {
+    return MutunWirdService().isDesignated(matna.teacherId);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -562,66 +572,74 @@ class MatnaDetailScreen extends StatelessWidget {
             Text(
               '${matna.typeLabel} • ${matna.totalCount} ${matna.unitLabel}',
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.inkSecondary),
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
         ),
       ),
-      body: StreamBuilder<List<Student>>(
-        stream: studentsService.watchPathwayStudents(
-          teacherId: matna.teacherId,
-          pathwayId: pathway.id,
-        ),
-        builder: (context, studentsSnap) {
-          if (studentsSnap.hasError) {
-            return ErrorState(
-              message: 'حدث خطأ أثناء تحميل الطلاب',
-              onRetry: () {},
-            );
-          }
-          if (!studentsSnap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final students = studentsSnap.data!;
-          if (students.isEmpty) {
-            return const EmptyState(
-              icon: Icons.school_outlined,
-              title: 'لا يوجد طلاب في هذا المسار',
-              message:
-                  'أضف طلاباً في تبويب "الطلاب" أولاً\nلتتمكن من متابعة حفظهم',
-            );
-          }
-
-          return StreamBuilder<List<MutunRecording>>(
-            stream: mutunService.watchMatnaRecordings(
+      body: FutureBuilder<bool>(
+        future: _isDesignated(),
+        builder: (context, designatedSnap) {
+          final isDesignated = designatedSnap.data ?? false;
+          return StreamBuilder<List<Student>>(
+            stream: studentsService.watchPathwayStudents(
               teacherId: matna.teacherId,
-              matnaId: matna.id,
+              pathwayId: pathway.id,
             ),
-            builder: (context, recSnap) {
-              if (!recSnap.hasData) {
-                return const Center(
-                    child: CircularProgressIndicator());
+            builder: (context, studentsSnap) {
+              if (studentsSnap.hasError) {
+                return ErrorState(
+                  message: 'حدث خطأ أثناء تحميل الطلاب',
+                  onRetry: () {},
+                );
+              }
+              if (!studentsSnap.hasData) {
+                return const Center(child: CircularProgressIndicator());
               }
 
-              final recordings = recSnap.data!;
-              // تجميع السجلات حسب الطالب
-              final byStudent = <String, List<MutunRecording>>{};
-              for (final r in recordings) {
-                byStudent.putIfAbsent(r.studentId, () => []).add(r);
+              final students = studentsSnap.data!;
+              if (students.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.school_outlined,
+                  title: 'لا يوجد طلاب في هذا المسار',
+                  message:
+                      'أضف طلاباً في تبويب "الطلاب" أولاً\nلتتمكن من متابعة حفظهم',
+                );
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 24),
-                itemCount: students.length,
-                itemBuilder: (context, index) {
-                  final student = students[index];
-                  final recs = byStudent[student.id] ?? [];
-                  return _StudentMatnaCard(
-                    student: student,
-                    matna: matna,
-                    recordings: recs,
-                    mutunService: mutunService,
+              return StreamBuilder<List<MutunRecording>>(
+                stream: mutunService.watchMatnaRecordings(
+                  teacherId: matna.teacherId,
+                  matnaId: matna.id,
+                ),
+                builder: (context, recSnap) {
+                  if (!recSnap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final recordings = recSnap.data!;
+                  // تجميع السجلات حسب الطالب
+                  final byStudent = <String, List<MutunRecording>>{};
+                  for (final r in recordings) {
+                    byStudent.putIfAbsent(r.studentId, () => []).add(r);
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(top: 8, bottom: 24),
+                    itemCount: students.length,
+                    itemBuilder: (context, index) {
+                      final student = students[index];
+                      final recs = byStudent[student.id] ?? [];
+                      return _StudentMatnaCard(
+                        student: student,
+                        matna: matna,
+                        recordings: recs,
+                        isDesignated: isDesignated,
+                        mutunService: mutunService,
+                      );
+                    },
                   );
                 },
               );
@@ -639,12 +657,14 @@ class _StudentMatnaCard extends StatelessWidget {
   final Student student;
   final Matna matna;
   final List<MutunRecording> recordings;
+  final bool? isDesignated;
   final MutunService mutunService;
 
   const _StudentMatnaCard({
     required this.student,
     required this.matna,
     required this.recordings,
+    this.isDesignated,
     required this.mutunService,
   });
 
@@ -675,8 +695,7 @@ class _StudentMatnaCard extends StatelessWidget {
       child: ExpansionTile(
         shape: const Border(),
         collapsedShape: const Border(),
-        tilePadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         leading: InitialAvatar(name: student.name, radius: 22),
         title: Text(student.name, style: textTheme.titleSmall),
         subtitle: Padding(
@@ -700,14 +719,13 @@ class _StudentMatnaCard extends StatelessWidget {
                 _completed
                     ? 'أتمّ المتن كاملاً 🎉'
                     : recordings.isEmpty
-                        ? 'لم يبدأ بعد'
-                        : 'وصل إلى ${matna.unitLabel} ${fmtNum(_lastReached)} من ${matna.totalCount} (${(_progress * 100).round()}%)',
+                    ? 'لم يبدأ بعد'
+                    : 'وصل إلى ${matna.unitLabel} ${fmtNum(_lastReached)} من ${matna.totalCount} (${(_progress * 100).round()}%)',
                 style: textTheme.bodySmall?.copyWith(
                   color: _completed
                       ? AppColors.goldDark
                       : AppColors.inkSecondary,
-                  fontWeight:
-                      _completed ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: _completed ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],
@@ -719,21 +737,31 @@ class _StudentMatnaCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // زر تسجيل حفظ جديد
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 44),
+                // زر تسجيل حفظ جديد — للمعلم المسؤول فقط
+                if (isDesignated == true)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                    ),
+                    onPressed: recordings.isEmpty || !_completed
+                        ? () => _showAddRecordingDialog(context)
+                        : null,
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: Text(
+                      _completed ? 'المتن مكتمل الحفظ' : 'تسجيل حفظ جديد',
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'تسجيل التسميع والتقدم الرسمي — لمعلم المتون والأوراد فقط',
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
                   ),
-                  onPressed: recordings.isEmpty || !_completed
-                      ? () => _showAddRecordingDialog(context)
-                      : null,
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: Text(
-                    _completed
-                        ? 'المتن مكتمل الحفظ'
-                        : 'تسجيل حفظ جديد',
-                  ),
-                ),
 
                 if (recordings.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -750,8 +778,9 @@ class _StudentMatnaCard extends StatelessWidget {
                     child: Text(
                       'لا توجد تسجيلات حفظ لهذا الطالب بعد',
                       textAlign: TextAlign.center,
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: AppColors.inkMuted),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.inkMuted,
+                      ),
                     ),
                   ),
               ],
@@ -774,8 +803,7 @@ class _StudentMatnaCard extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteRecording(
-      BuildContext context, MutunRecording r) async {
+  Future<void> _deleteRecording(BuildContext context, MutunRecording r) async {
     final confirmed = await showConfirmDialog(
       context,
       title: 'حذف التسجيل',
@@ -812,8 +840,7 @@ class _RecordingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateText =
-        DateFormat('d MMMM y', 'ar').format(recording.date);
+    final dateText = DateFormat('d MMMM y', 'ar').format(recording.date);
     final isAbsent = recording.isAbsent;
     final isNotListened = recording.isNotListened;
     final flagged = isAbsent || isNotListened;
@@ -821,14 +848,13 @@ class _RecordingTile extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isAbsent
             ? AppColors.errorSurface
             : isNotListened
-                ? AppColors.warningSurface
-                : AppColors.surfaceAlt,
+            ? AppColors.warningSurface
+            : AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
@@ -875,8 +901,7 @@ class _RecordingTile extends StatelessWidget {
                       color: AppColors.inkSecondary,
                     ),
                   ),
-                if (recording.notes != null &&
-                    recording.notes!.isNotEmpty) ...[
+                if (recording.notes != null && recording.notes!.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(
                     recording.notes!,
@@ -926,8 +951,7 @@ class _AddMutunRecordingDialog extends StatefulWidget {
       _AddMutunRecordingDialogState();
 }
 
-class _AddMutunRecordingDialogState
-    extends State<_AddMutunRecordingDialog> {
+class _AddMutunRecordingDialogState extends State<_AddMutunRecordingDialog> {
   final _formKey = GlobalKey<FormState>();
   final _fromController = TextEditingController();
   final _toController = TextEditingController();
@@ -982,8 +1006,7 @@ class _AddMutunRecordingDialogState
 
   Future<void> _submit() async {
     if (_attendanceStatus == null) {
-      setState(() => _errorMessage =
-          'اختر حالة الطالب أولاً: حاضر أو غائب');
+      setState(() => _errorMessage = 'اختر حالة الطالب أولاً: حاضر أو غائب');
       return;
     }
 
@@ -999,8 +1022,10 @@ class _AddMutunRecordingDialogState
     final to = double.parse(_toController.text.trim());
 
     if (to > widget.matna.totalCount) {
-      setState(() => _errorMessage =
-          'القيمة "إلى" ($to) تتجاوز إجمالي المتن (${widget.matna.totalCount})');
+      setState(
+        () => _errorMessage =
+            'القيمة "إلى" ($to) تتجاوز إجمالي المتن (${widget.matna.totalCount})',
+      );
       return;
     }
 
@@ -1052,14 +1077,12 @@ class _AddMutunRecordingDialogState
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final weekday = MutunService.weekdayOf(_selectedDate);
-    final dateText =
-        DateFormat('d MMMM y', 'ar').format(_selectedDate);
+    final dateText = DateFormat('d MMMM y', 'ar').format(_selectedDate);
     final count = _autoCount;
     final isAbsentMode = _attendanceStatus == 'absent';
 
     return Dialog(
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
         child: SingleChildScrollView(
@@ -1079,17 +1102,17 @@ class _AddMutunRecordingDialogState
                         gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(13),
                       ),
-                      child: const Icon(Icons.bookmark_added_rounded,
-                          color: Colors.white),
+                      child: const Icon(
+                        Icons.bookmark_added_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('تسجيل حفظ',
-                              style: textTheme.titleMedium),
+                          Text('تسجيل حفظ', style: textTheme.titleMedium),
                           Text(
                             '${widget.student.name} • ${widget.matna.name}',
                             style: textTheme.bodySmall,
@@ -1142,19 +1165,22 @@ class _AddMutunRecordingDialogState
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceAlt,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.touch_app_rounded,
-                            size: 18, color: AppColors.inkMuted),
+                        const Icon(
+                          Icons.touch_app_rounded,
+                          size: 18,
+                          color: AppColors.inkMuted,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'البيانات معطّلة — اختر حالة الطالب (حاضر / غائب) أولاً',
-                            style: textTheme.bodySmall
-                                ?.copyWith(color: AppColors.inkMuted),
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.inkMuted,
+                            ),
                           ),
                         ),
                       ],
@@ -1168,19 +1194,22 @@ class _AddMutunRecordingDialogState
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.errorSurface,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.event_busy_rounded,
-                            size: 18, color: AppColors.error),
+                        const Icon(
+                          Icons.event_busy_rounded,
+                          size: 18,
+                          color: AppColors.error,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'سيُسجَّل ${widget.student.name} غائباً في التاريخ المحدد أدناه',
-                            style: textTheme.bodySmall
-                                ?.copyWith(color: AppColors.error),
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.error,
+                            ),
                           ),
                         ),
                       ],
@@ -1194,12 +1223,14 @@ class _AddMutunRecordingDialogState
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.errorSurface,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
-                    child: Text(_errorMessage!,
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: AppColors.error)),
+                    child: Text(
+                      _errorMessage!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
                 ],
@@ -1211,24 +1242,24 @@ class _AddMutunRecordingDialogState
                   child: InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'التاريخ',
-                      prefixIcon:
-                          const Icon(Icons.calendar_month_rounded),
+                      prefixIcon: const Icon(Icons.calendar_month_rounded),
                       enabled: _dateEnabled,
                     ),
                     child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           '$weekday، $dateText',
                           style: _dateEnabled
                               ? null
-                              : const TextStyle(
-                                  color: AppColors.inkMuted),
+                              : const TextStyle(color: AppColors.inkMuted),
                         ),
                         if (_dateEnabled)
-                          const Icon(Icons.edit_calendar_outlined,
-                              size: 18, color: AppColors.inkMuted),
+                          const Icon(
+                            Icons.edit_calendar_outlined,
+                            size: 18,
+                            color: AppColors.inkMuted,
+                          ),
                       ],
                     ),
                   ),
@@ -1243,17 +1274,15 @@ class _AddMutunRecordingDialogState
                         child: TextFormField(
                           controller: _fromController,
                           enabled: _dataEnabled,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           decoration: InputDecoration(
-                            labelText:
-                                'من (${widget.matna.unitLabel}) *',
+                            labelText: 'من (${widget.matna.unitLabel}) *',
                           ),
                           onChanged: (_) => setState(() {}),
                           validator: (v) {
-                            final n =
-                                double.tryParse(v?.trim() ?? '');
+                            final n = double.tryParse(v?.trim() ?? '');
                             if (n == null || n < 1) {
                               return 'أدخل رقماً صحيحاً';
                             }
@@ -1266,22 +1295,21 @@ class _AddMutunRecordingDialogState
                         child: TextFormField(
                           controller: _toController,
                           enabled: _dataEnabled,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(
-                                  decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                           decoration: InputDecoration(
-                            labelText:
-                                'إلى (${widget.matna.unitLabel}) *',
+                            labelText: 'إلى (${widget.matna.unitLabel}) *',
                           ),
                           onChanged: (_) => setState(() {}),
                           validator: (v) {
-                            final n =
-                                double.tryParse(v?.trim() ?? '');
+                            final n = double.tryParse(v?.trim() ?? '');
                             if (n == null || n < 1) {
                               return 'أدخل رقماً صحيحاً';
                             }
                             final from = double.tryParse(
-                                _fromController.text.trim());
+                              _fromController.text.trim(),
+                            );
                             if (from != null && n < from) {
                               return 'أقل من "من"';
                             }
@@ -1296,11 +1324,12 @@ class _AddMutunRecordingDialogState
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 12),
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primarySurface,
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.sm),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                       ),
                       child: Text(
                         'المقدار: $count ${widget.matna.unitLabel} (محسوب تلقائياً)',
@@ -1334,8 +1363,7 @@ class _AddMutunRecordingDialogState
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.transparent,
-                          side: const BorderSide(
-                              color: AppColors.line),
+                          side: const BorderSide(color: AppColors.line),
                           foregroundColor: AppColors.inkSecondary,
                         ),
                         onPressed: _isLoading
@@ -1353,15 +1381,12 @@ class _AddMutunRecordingDialogState
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child:
-                                    CircularProgressIndicator(
+                                child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: Colors.white,
                                 ),
                               )
-                            : Text(isAbsentMode
-                                ? 'حفظ الغياب'
-                                : 'حفظ التسجيل'),
+                            : Text(isAbsentMode ? 'حفظ الغياب' : 'حفظ التسجيل'),
                       ),
                     ),
                   ],
@@ -1414,16 +1439,13 @@ class _AttendanceButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                size: 20,
-                color: selected ? color : AppColors.inkMuted),
+            Icon(icon, size: 20, color: selected ? color : AppColors.inkMuted),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight:
-                    selected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 color: selected ? color : AppColors.inkSecondary,
               ),
             ),
