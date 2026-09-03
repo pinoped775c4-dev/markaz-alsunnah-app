@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
+import '../../services/mutun_wird_service.dart';
 import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
@@ -21,6 +22,9 @@ class TeachersScreen extends StatefulWidget {
 
 class _TeachersScreenState extends State<TeachersScreen> {
   final TeachersService _service = TeachersService();
+  final MutunWirdService _wirdService = MutunWirdService();
+  late final Stream<MutunWirdDesignation> _wirdStream = _wirdService
+      .watchDesignation();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -51,8 +55,7 @@ class _TeachersScreenState extends State<TeachersScreen> {
             Text('إدارة المعلمين'),
             Text(
               'إضافة ومتابعة معلمي المركز',
-              style:
-                  TextStyle(fontSize: 12, color: AppColors.inkSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
@@ -64,109 +67,127 @@ class _TeachersScreenState extends State<TeachersScreen> {
           ),
           const Padding(
             padding: EdgeInsetsDirectional.only(end: 12),
-            child: Center(
-                child: CircularLogo(size: 42, elevated: false)),
+            child: Center(child: CircularLogo(size: 42, elevated: false)),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddTeacherDialog(context),
         icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('إضافة معلم جديد',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+        label: const Text(
+          'إضافة معلم جديد',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
       body: WatermarkedBackground(
         child: StreamBuilder<List<AppUser>>(
           stream: _service.watchTeachers(),
           builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return ErrorState(
-              message: 'حدث خطأ أثناء تحميل قائمة المعلمين',
-              onRetry: () => setState(() {}),
-            );
-          }
+            if (snapshot.hasError) {
+              return ErrorState(
+                message: 'حدث خطأ أثناء تحميل قائمة المعلمين',
+                onRetry: () => setState(() {}),
+              );
+            }
 
-          if (!snapshot.hasData) {
-            return const ListSkeleton(itemCount: 5);
-          }
+            if (!snapshot.hasData) {
+              return const ListSkeleton(itemCount: 5);
+            }
 
-          final allTeachers = snapshot.data!;
-          final filtered = _filter(allTeachers);
-          final activeCount = allTeachers.where((t) => t.isActive).length;
+            final allTeachers = snapshot.data!;
+            final filtered = _filter(allTeachers);
+            final activeCount = allTeachers.where((t) => t.isActive).length;
 
-          return RefreshIndicator(
-            color: AppColors.primary,
-            onRefresh: () async => setState(() {}),
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                // بطاقة الإحصائيات الموحدة
-                SliverToBoxAdapter(
-                  child: _StatsCard(
-                    total: allTeachers.length,
-                    active: activeCount,
-                    disabled: allTeachers.length - activeCount,
+            return RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: () async => setState(() {}),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // بطاقة الإحصائيات الموحدة
+                  SliverToBoxAdapter(
+                    child: _StatsCard(
+                      total: allTeachers.length,
+                      active: activeCount,
+                      disabled: allTeachers.length - activeCount,
+                    ),
                   ),
-                ),
 
-                // حقل البحث
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (v) =>
-                          setState(() => _searchQuery = v.trim()),
-                      decoration: InputDecoration(
-                        hintText: 'بحث بالاسم أو البريد أو التخصص...',
-                        prefixIcon:
-                            const Icon(Icons.search_rounded),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                },
-                              )
-                            : null,
+                  // بطاقة تعيين "معلم المتون والأوراد" — إعداد الإدارة
+                  SliverToBoxAdapter(
+                    child: _MutunWirdDesignationCard(
+                      teachers: allTeachers,
+                      wirdService: _wirdService,
+                    ),
+                  ),
+
+                  // حقل البحث
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) =>
+                            setState(() => _searchQuery = v.trim()),
+                        decoration: InputDecoration(
+                          hintText: 'بحث بالاسم أو البريد أو التخصص...',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                if (allTeachers.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.groups_outlined,
-                      title: 'لا يوجد معلمون بعد',
-                      message:
-                          'ابدأ بإضافة أول معلم ليتمكن من إدارة طلابه\nوتسجيل دروسه اليومية',
-                      actionLabel: 'إضافة أول معلم',
-                      onAction: () => _showAddTeacherDialog(context),
+                  if (allTeachers.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: EmptyState(
+                        icon: Icons.groups_outlined,
+                        title: 'لا يوجد معلمون بعد',
+                        message:
+                            'ابدأ بإضافة أول معلم ليتمكن من إدارة طلابه\nوتسجيل دروسه اليومية',
+                        actionLabel: 'إضافة أول معلم',
+                        onAction: () => _showAddTeacherDialog(context),
+                      ),
+                    )
+                  else if (filtered.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: 'لا توجد نتائج مطابقة',
+                        message: 'جرّب كلمة بحث مختلفة',
+                      ),
+                    )
+                  else
+                    SliverList.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) =>
+                          StreamBuilder<MutunWirdDesignation>(
+                            stream: _wirdStream,
+                            builder: (context, wirdSnap) {
+                              final teacher = filtered[index];
+                              return _TeacherCard(
+                                teacher: teacher,
+                                isDesignated:
+                                    wirdSnap.data?.teacherUid == teacher.uid,
+                              );
+                            },
+                          ),
                     ),
-                  )
-                else if (filtered.isEmpty)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.search_off_rounded,
-                      title: 'لا توجد نتائج مطابقة',
-                      message: 'جرّب كلمة بحث مختلفة',
-                    ),
-                  )
-                else
-                  SliverList.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) =>
-                        _TeacherCard(teacher: filtered[index]),
-                  ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 96)),
-              ],
-            ),
-          );
+                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                ],
+              ),
+            );
           },
         ),
       ),
@@ -174,12 +195,10 @@ class _TeachersScreenState extends State<TeachersScreen> {
   }
 
   void _showAddTeacherDialog(BuildContext context) {
-    final adminUid =
-        context.read<AuthService>().currentUser?.uid ?? '';
+    final adminUid = context.read<AuthService>().currentUser?.uid ?? '';
     showDialog(
       context: context,
-      builder: (_) =>
-          _AddTeacherDialog(service: _service, adminUid: adminUid),
+      builder: (_) => _AddTeacherDialog(service: _service, adminUid: adminUid),
     );
   }
 }
@@ -216,25 +235,28 @@ class _StatsCard extends StatelessWidget {
       child: Row(
         children: [
           _StatItem(
-              value: total, label: 'الإجمالي', icon: Icons.groups_rounded),
+            value: total,
+            label: 'الإجمالي',
+            icon: Icons.groups_rounded,
+          ),
           _divider(),
           _StatItem(
-              value: active,
-              label: 'نشط',
-              icon: Icons.check_circle_rounded),
+            value: active,
+            label: 'نشط',
+            icon: Icons.check_circle_rounded,
+          ),
           _divider(),
-          _StatItem(
-              value: disabled, label: 'معطّل', icon: Icons.block_rounded),
+          _StatItem(value: disabled, label: 'معطّل', icon: Icons.block_rounded),
         ],
       ),
     );
   }
 
   Widget _divider() => Container(
-        width: 1,
-        height: 44,
-        color: Colors.white.withValues(alpha: 0.25),
-      );
+    width: 1,
+    height: 44,
+    color: Colors.white.withValues(alpha: 0.25),
+  );
 }
 
 class _StatItem extends StatelessWidget {
@@ -242,8 +264,11 @@ class _StatItem extends StatelessWidget {
   final String label;
   final IconData icon;
 
-  const _StatItem(
-      {required this.value, required this.label, required this.icon});
+  const _StatItem({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -275,10 +300,355 @@ class _StatItem extends StatelessWidget {
 
 // ==================== بطاقة المعلم ====================
 
+// ==================== بطاقة تعيين معلم المتون والأوراد ====================
+
+/// إعداد الإدارة: اختيار المعلم الوحيد المسؤول عن
+/// السجلات الرسمية للمتون والأوراد القرآنية.
+class _MutunWirdDesignationCard extends StatefulWidget {
+  final List<AppUser> teachers;
+  final MutunWirdService wirdService;
+
+  const _MutunWirdDesignationCard({
+    required this.teachers,
+    required this.wirdService,
+  });
+
+  @override
+  State<_MutunWirdDesignationCard> createState() =>
+      _MutunWirdDesignationCardState();
+}
+
+class _MutunWirdDesignationCardState extends State<_MutunWirdDesignationCard> {
+  late final Stream<MutunWirdDesignation> _stream = widget.wirdService
+      .watchDesignation();
+
+  Future<void> _openDesignationDialog() async {
+    final activeTeachers = widget.teachers.where((t) => t.isActive).toList();
+    if (activeTeachers.isEmpty) {
+      showErrorSnackBar(context, 'لا بد من إضافة معلم نشط أولاً ليتم تعيينه.');
+      return;
+    }
+    final adminUid = context.read<AuthService>().currentUser?.uid ?? '';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DesignateWirdTeacherDialog(
+        teachers: activeTeachers,
+        wirdService: widget.wirdService,
+        adminUid: adminUid,
+      ),
+    );
+    if (saved == true && mounted) {
+      showSuccessSnackBar(context, 'تم حفظ تعيين معلم المتون والأوراد بنجاح');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return StreamBuilder<MutunWirdDesignation>(
+      stream: _stream,
+      builder: (context, snap) {
+        final designation = snap.data;
+        final hasTeacher = designation?.hasDesignatedTeacher ?? false;
+        final dateText = designation?.designatedAt != null
+            ? DateFormat('d MMMM y', 'ar').format(designation!.designatedAt!)
+            : '';
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: hasTeacher ? AppColors.success : AppColors.lineSoft,
+              width: hasTeacher ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color:
+                          (hasTeacher ? AppColors.success : AppColors.primary)
+                              .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      color: hasTeacher ? AppColors.success : AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'معلم المتون والأوراد',
+                          style: textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasTeacher
+                              ? 'المسؤول الوحيد عن السجلات الرسمية'
+                              : 'لم يُعيَّن معلم مسؤول بعد',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: _openDesignationDialog,
+                    icon: const Icon(Icons.how_to_reg_rounded, size: 18),
+                    label: Text(hasTeacher ? 'تغيير' : 'تعيين'),
+                  ),
+                ],
+              ),
+              if (hasTeacher) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 16,
+                        color: AppColors.success,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          dateText.isEmpty
+                              ? designation!.teacherName
+                              : '${designation!.teacherName} • منذ $dateText',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (!snap.hasData) ...[
+                const SizedBox(height: 10),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// حوار اختيار معلم واحد مسؤول عن المتون والأوراد
+class _DesignateWirdTeacherDialog extends StatefulWidget {
+  final List<AppUser> teachers;
+  final MutunWirdService wirdService;
+  final String adminUid;
+
+  const _DesignateWirdTeacherDialog({
+    required this.teachers,
+    required this.wirdService,
+    required this.adminUid,
+  });
+
+  @override
+  State<_DesignateWirdTeacherDialog> createState() =>
+      _DesignateWirdTeacherDialogState();
+}
+
+class _DesignateWirdTeacherDialogState
+    extends State<_DesignateWirdTeacherDialog> {
+  String? _selectedUid;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.wirdService.getDesignatedTeacherUid().then((uid) {
+      if (mounted) {
+        setState(() {
+          _selectedUid = uid;
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    if (_selectedUid == null) {
+      setState(() => _errorMessage = 'اختر معلماً من القائمة أولاً.');
+      return;
+    }
+    final teacher = widget.teachers.firstWhere((t) => t.uid == _selectedUid);
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    final result = await widget.wirdService.setDesignatedTeacher(
+      teacherUid: teacher.uid,
+      teacherName: teacher.name,
+      adminUid: widget.adminUid,
+    );
+
+    if (!mounted) return;
+    if (result.success) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() {
+        _isSaving = false;
+        _errorMessage = result.errorMessage;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.how_to_reg_rounded, color: AppColors.primary),
+          const SizedBox(width: 8),
+          const Text('تعيين معلم المتون والأوراد'),
+        ],
+      ),
+      content: _isLoading
+          ? const SizedBox(
+              height: 140,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'المعلم المسؤول هو الوحيد القادر على إنشاء السجلات الرسمية التي تظهر في تقارير الإدارة: المتون، التسميع والتقدم، والأوراد القرآنية.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.inkSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorSurface,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: widget.teachers.length,
+                      itemBuilder: (context, index) {
+                        final t = widget.teachers[index];
+                        final selected = _selectedUid == t.uid;
+                        return ListTile(
+                          onTap: () => setState(() => _selectedUid = t.uid),
+                          leading: Icon(
+                            selected
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.inkMuted,
+                          ),
+                          title: Text(
+                            t.name,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: (t.specialization ?? '').isNotEmpty
+                              ? Text(
+                                  t.specialization!,
+                                  style: const TextStyle(fontSize: 11),
+                                )
+                              : null,
+                          dense: true,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'تغيير التعيين لا يحذف ولا ينقل أي سجلات — سجلات المعلم السابق الرسمية تبقى رسمية.',
+                    style: TextStyle(fontSize: 11, color: AppColors.inkMuted),
+                  ),
+                ],
+              ),
+            ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton.icon(
+          onPressed: _isSaving ? null : _save,
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.check_rounded),
+          label: const Text('حفظ التعيين'),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== بطاقة المعلم ====================
+
 class _TeacherCard extends StatelessWidget {
   final AppUser teacher;
+  final bool isDesignated;
 
-  const _TeacherCard({required this.teacher});
+  const _TeacherCard({required this.teacher, this.isDesignated = false});
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +685,38 @@ class _TeacherCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (isDesignated) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.verified_rounded,
+                                size: 12,
+                                color: AppColors.success,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'معلم المتون والأوراد',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       teacher.isActive
                           ? const StatusChip.active()
                           : const StatusChip.disabled(),
@@ -323,8 +725,11 @@ class _TeacherCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      const Icon(Icons.alternate_email_rounded,
-                          size: 14, color: AppColors.inkMuted),
+                      const Icon(
+                        Icons.alternate_email_rounded,
+                        size: 14,
+                        color: AppColors.inkMuted,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -345,8 +750,9 @@ class _TeacherCard extends StatelessWidget {
                           teacher.specialization!,
                         if (teacher.phone != null) teacher.phone!,
                       ].join('  •  '),
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: AppColors.inkMuted),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.inkMuted,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -356,15 +762,19 @@ class _TeacherCard extends StatelessWidget {
                     Text(
                       'انضم في $dateText',
                       style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.inkMuted, fontSize: 11),
+                        color: AppColors.inkMuted,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded,
-                  color: AppColors.inkMuted),
+              icon: const Icon(
+                Icons.more_vert_rounded,
+                color: AppColors.inkMuted,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
@@ -384,9 +794,7 @@ class _TeacherCard extends StatelessWidget {
                             : AppColors.success,
                       ),
                       const SizedBox(width: 12),
-                      Text(teacher.isActive
-                          ? 'تعطيل الحساب'
-                          : 'تفعيل الحساب'),
+                      Text(teacher.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'),
                     ],
                   ),
                 ),
@@ -394,10 +802,27 @@ class _TeacherCard extends StatelessWidget {
                   value: 'reset',
                   child: Row(
                     children: [
-                      Icon(Icons.lock_reset_rounded,
-                          size: 20, color: AppColors.primary),
+                      Icon(
+                        Icons.lock_reset_rounded,
+                        size: 20,
+                        color: AppColors.primary,
+                      ),
                       SizedBox(width: 12),
                       Text('إعادة تعيين كلمة المرور'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'designate',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.workspace_premium_rounded,
+                        size: 20,
+                        color: AppColors.success,
+                      ),
+                      SizedBox(width: 12),
+                      Text('تعيين معلم المتون والأوراد'),
                     ],
                   ),
                 ),
@@ -405,11 +830,16 @@ class _TeacherCard extends StatelessWidget {
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_forever_rounded,
-                          size: 20, color: AppColors.error),
+                      Icon(
+                        Icons.delete_forever_rounded,
+                        size: 20,
+                        color: AppColors.error,
+                      ),
                       SizedBox(width: 12),
-                      Text('حذف الحساب نهائيًا',
-                          style: TextStyle(color: AppColors.error)),
+                      Text(
+                        'حذف الحساب نهائيًا',
+                        style: TextStyle(color: AppColors.error),
+                      ),
                     ],
                   ),
                 ),
@@ -474,7 +904,48 @@ class _TeacherCard extends StatelessWidget {
       } else {
         showErrorSnackBar(context, result.errorMessage!);
       }
+    } else if (action == 'designate') {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: 'تعيين معلم المتون والأوراد',
+        message:
+            'سيصبح "${teacher.name}" المعلم الوحيد المسؤول عن إنشاء السجلات الرسمية:\n'
+            'المتون، تسجيل التسميع والتقدم، والأوراد القرآنية التي تظهر في تقارير الإدارة.\n\n'
+            'السجلات الرسمية السابقة لا تُحذف ولا تُنقل وتبقى رسمية.',
+        confirmLabel: 'تعيين',
+      );
+      if (!confirmed || !context.mounted) return;
+
+      final adminUid = context.read<AuthService>().currentUser?.uid ?? '';
+      final result = await MutunWirdService().setDesignatedTeacher(
+        teacherUid: teacher.uid,
+        teacherName: teacher.name,
+        adminUid: adminUid,
+      );
+      if (!context.mounted) return;
+
+      if (result.success) {
+        showSuccessSnackBar(
+          context,
+          'تم تعيين "${teacher.name}" معلماً للمتون والأوراد',
+        );
+      } else {
+        showErrorSnackBar(context, result.errorMessage!);
+      }
     } else if (action == 'delete') {
+      if (isDesignated) {
+        final proceed = await showConfirmDialog(
+          context,
+          title: 'المعلم مسؤول عن المتون والأوراد',
+          message:
+              '"${teacher.name}" هو معلم المتون والأوراد الحالي.\n'
+              'حذف حسابه سيُخلي مسؤولية المتون والأوراد (يتعين على الإدارة تعيين معلم جديد)،\n'
+              'وسجلاته الرسمية السابقة تبقى محفوظة كما هي.\n\nهل تريد المتابعة؟',
+          confirmLabel: 'متابعة',
+          isDestructive: true,
+        );
+        if (!proceed || !context.mounted) return;
+      }
       final confirmed = await showConfirmDialog(
         context,
         title: 'حذف حساب المعلم نهائيًا',
@@ -514,7 +985,9 @@ class _TeacherCard extends StatelessWidget {
 
       if (result.success) {
         showSuccessSnackBar(
-            context, 'تم حذف حساب ${teacher.name} وجميع بياناته');
+          context,
+          'تم حذف حساب ${teacher.name} وجميع بياناته',
+        );
       } else {
         showErrorSnackBar(context, result.errorMessage!);
       }
@@ -528,8 +1001,7 @@ class _AddTeacherDialog extends StatefulWidget {
   final TeachersService service;
   final String adminUid;
 
-  const _AddTeacherDialog(
-      {required this.service, required this.adminUid});
+  const _AddTeacherDialog({required this.service, required this.adminUid});
 
   @override
   State<_AddTeacherDialog> createState() => _AddTeacherDialogState();
@@ -595,8 +1067,7 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
     final textTheme = Theme.of(context).textTheme;
 
     return Dialog(
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: SingleChildScrollView(
@@ -616,16 +1087,17 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
                         gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.person_add_alt_1_rounded,
-                          color: Colors.white),
+                      child: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('إضافة معلم جديد',
-                              style: textTheme.titleMedium),
+                          Text('إضافة معلم جديد', style: textTheme.titleMedium),
                           Text(
                             'سيُنشأ حساب دخول للمعلم فوراً',
                             style: textTheme.bodySmall,
@@ -646,14 +1118,18 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline_rounded,
-                            color: AppColors.error, size: 18),
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: textTheme.bodySmall
-                                ?.copyWith(color: AppColors.error),
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.error,
+                            ),
                           ),
                         ),
                       ],
@@ -668,9 +1144,8 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
                     labelText: 'الاسم الكامل *',
                     prefixIcon: Icon(Icons.person_outline_rounded),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'الاسم مطلوب'
-                      : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'الاسم مطلوب' : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -687,8 +1162,9 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
                     if (v == null || v.trim().isEmpty) {
                       return 'البريد الإلكتروني مطلوب';
                     }
-                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                        .hasMatch(v.trim())) {
+                    if (!RegExp(
+                      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                    ).hasMatch(v.trim())) {
                       return 'صيغة البريد الإلكتروني غير صحيحة';
                     }
                     return null;
@@ -711,8 +1187,8 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
                       ),
-                      onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                   validator: (v) {
@@ -792,7 +1268,6 @@ class _AddTeacherDialogState extends State<_AddTeacherDialog> {
   }
 }
 
-
 // ==================== حوار إعادة تعيين كلمة المرور ====================
 
 class _ResetPasswordDialog extends StatefulWidget {
@@ -855,9 +1330,11 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
                 labelText: 'كلمة المرور الجديدة',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded),
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                  ),
                   onPressed: () =>
                       setState(() => _obscurePassword = !_obscurePassword),
                 ),
@@ -881,9 +1358,11 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
                 labelText: 'تأكيد كلمة المرور',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureConfirm
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded),
+                  icon: Icon(
+                    _obscureConfirm
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                  ),
                   onPressed: () =>
                       setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
