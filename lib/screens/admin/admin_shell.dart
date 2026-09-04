@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
-import 'reports_screen.dart';
 import 'teachers_screen.dart';
 
-/// هيكل لوحة المدير — شريط تنقل عصري: المعلمون | التقارير
+/// هيكل لوحة المدير — شريط تنقل عصري: المعلمون
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
 
@@ -17,7 +16,6 @@ class _AdminShellState extends State<AdminShell> {
 
   final _screens = const [
     TeachersScreen(),
-    ReportsScreen(),
   ];
 
   @override
@@ -49,12 +47,6 @@ class _AdminShellState extends State<AdminShell> {
               selectedIcon:
                   Icon(Icons.groups_rounded, color: AppColors.primary),
               label: 'المعلمون',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.insert_chart_outlined_rounded),
-              selectedIcon: Icon(Icons.insert_chart_rounded,
-                  color: AppColors.primary),
-              label: 'التقارير',
             ),
           ],
         ),

@@ -1,24 +1,19 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/lesson.dart';
 import '../../models/student.dart';
-import '../../services/auth_service.dart';
 import '../../services/lessons_service.dart';
-import '../../services/report_pdf_service.dart';
-import '../../services/reports_service.dart';
 import '../../services/students_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// تبويب الدروس — قائمة بطاقات دروس متعددة (نمط المتون)
 ///
 /// لكل مسار يستطيع المعلم إنشاء أكثر من درس عام؛ كل درس بطاقة تُنقر
-/// فتفتح شاشة تفاصيل فيها سجل الدروس اليومية + الرسم البياني للمنجز +
-/// زر رفع تقرير الدروس للإدارة.
+/// فتفتح شاشة تفاصيل فيها سجل الدروس اليومية + الرسم البياني للمنجز.
 class LessonsTab extends StatefulWidget {
   final PathwayInfo pathway;
   final String teacherId;
@@ -631,8 +626,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   /// التسجيلات المضافة/المعدّلة للتو — تُدمج فوق البث (العرض المتفائل)
   final Map<String, LessonRecording> _optimistic = {};
 
-  bool _reportBusy = false;
-
   void _openAddDialog() {
     showDialog(
       context: context,
@@ -662,118 +655,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         },
       ),
     );
-  }
-
-  // ==================== رفع تقرير الدروس للإدارة ====================
-
-  Future<void> _openReportFlow() async {
-    if (_reportBusy) return;
-    setState(() => _reportBusy = true);
-    try {
-      final dailyReports =
-          await ReportsService().buildLessonDailyReports(widget.lesson);
-      if (!mounted) return;
-
-      if (dailyReports.isEmpty) {
-        showSuccessSnackBar(
-            context, 'لا توجد دروس يومية مسجلة لبناء تقرير بعد.');
-        return;
-      }
-
-      final cards = ReportsService()
-          .buildPeriodCards(lesson: widget.lesson, dailyReports: dailyReports);
-
-      final period = await _pickPeriodSheet(cards.weeks, cards.months);
-      if (period == null || !mounted) return;
-
-      final teacherName =
-          context.read<AuthService>().currentUser?.name ?? 'المعلم';
-
-      await ReportPdfService.exportPeriodPdf(
-        period: period,
-        lesson: widget.lesson,
-        dailyReports: dailyReports,
-        teacherName: teacherName,
-        pathwayName: widget.pathway.name,
-      );
-    } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(context, 'تعذّر إنشاء التقرير: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _reportBusy = false);
-    }
-  }
-
-  /// Bottom sheet لاختيار الفترة (أسبوع أو شهر) لتصدير PDF
-  Future<PeriodCard?> _pickPeriodSheet(
-      List<PeriodCard> weeks, List<PeriodCard> months) {
-    return showModalBottomSheet<PeriodCard>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final maxH = MediaQuery.of(ctx).size.height * 0.7;
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxH),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.upload_file_rounded,
-                        color: AppColors.primary),
-                    const SizedBox(width: 10),
-                    Text('رفع تقرير الدروس للإدارة',
-                        style: Theme.of(ctx)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'اختر الفترة التي يتفق عليها مع الإدارة لتصديرها PDF:',
-                  style: Theme.of(ctx).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 14),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      if (weeks.isNotEmpty) ..._periodHeader(ctx, 'أسبوعيًا'),
-                      ...weeks.map((w) => _PeriodListTile(card: w)),
-                      if (months.isNotEmpty) ..._periodHeader(ctx, 'شهريًا'),
-                      ...months.map((m) => _PeriodListTile(card: m)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  List<Widget> _periodHeader(BuildContext ctx, String label) {
-    return [
-      Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 8),
-        child: Text(
-          label,
-          style: Theme.of(ctx)
-              .textTheme
-              .labelMedium
-              ?.copyWith(fontWeight: FontWeight.bold, color: AppColors.inkMuted),
-        ),
-      ),
-    ];
   }
 
   @override
@@ -836,52 +717,22 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                   lesson: widget.lesson, recordings: recordings),
               const SizedBox(height: 16),
 
-              // زرا الإضافة ورفع التقرير
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: ElevatedButton.icon(
-                      onPressed: _openAddDialog,
-                      icon: const Icon(Icons.add_task_rounded),
-                      label: const Text('إضافة درس يومي',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.md)),
-                      ),
-                    ),
+              // زر إضافة درس يومي
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _openAddDialog,
+                  icon: const Icon(Icons.add_task_rounded),
+                  label: const Text('إضافة درس يومي',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md)),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: OutlinedButton.icon(
-                      onPressed: _reportBusy ? null : _openReportFlow,
-                      icon: _reportBusy
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2),
-                            )
-                          : const Icon(Icons.upload_file_rounded),
-                      label: const Text('رفع تقرير',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.md)),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -909,57 +760,6 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-// ==================== بطاقة الفترة في قائمة اختيار التقرير ====================
-
-class _PeriodListTile extends StatelessWidget {
-  final PeriodCard card;
-
-  const _PeriodListTile({required this.card});
-
-  @override
-  Widget build(BuildContext context) {
-    final df = DateFormat('d/M', 'ar');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-            color: card.isCurrent ? AppColors.primary : AppColors.lineSoft,
-            width: card.isCurrent ? 1.5 : 1),
-      ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        title: Text(card.title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text(
-          '${df.format(card.start)} – ${df.format(card.end)} • '
-          '${fmtNum(card.report.unitsAccomplished)} ${'منجز'}',
-          style: const TextStyle(fontSize: 11.5),
-        ),
-        trailing: card.isCurrent
-            ? Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySurface,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text('الحالي',
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary)),
-              )
-            : const Icon(Icons.picture_as_pdf_rounded,
-                color: AppColors.primary),
-        onTap: () => Navigator.of(context).pop(card),
       ),
     );
   }
