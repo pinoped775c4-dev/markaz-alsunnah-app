@@ -12,11 +12,13 @@ import '../../models/matna.dart';
 import '../../models/quran.dart';
 import '../../models/student.dart';
 import '../../services/mutun_service.dart';
+import '../../services/mutun_wird_service.dart';
 import '../../services/quran_service.dart';
 import '../../services/report_pdf_service.dart';
 import '../../services/reports_service.dart';
 import '../../services/students_service.dart';
 import '../../services/teachers_service.dart';
+import 'periodic_report_screen.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -126,9 +128,46 @@ class _TeachersReportsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
       children: [
+        // ===== أزرار التقارير الدورية =====
+        const SectionHeader(
+          title: 'التقارير الدورية',
+          subtitle: 'تقارير أسبوعية وشهرية بتصدير PDF وWord',
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _PeriodicReportButton(
+                label: 'تقرير أسبوعي',
+                icon: Icons.calendar_view_week_rounded,
+                color: AppColors.primary,
+                onTap: () => openPeriodicReportPicker(
+                  context,
+                  isWeekly: true,
+                  isTeacherReport: true,
+                  pathways: pathways,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PeriodicReportButton(
+                label: 'تقرير شهري',
+                icon: Icons.calendar_month_rounded,
+                color: AppColors.gold,
+                onTap: () => openPeriodicReportPicker(
+                  context,
+                  isWeekly: false,
+                  isTeacherReport: true,
+                  pathways: pathways,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
         const SectionHeader(
           title: 'الأقسام التعليمية',
-          subtitle: 'اضغط على قسم لعرض معلميه وتقاريرهم',
+          subtitle: 'اضغط على قسم لعرض معلميه وتقاريرهم اليومية',
         ),
         const SizedBox(height: 4),
         // ===== الأقسام بأيقونات دائرية (صفوف × عمودان) =====
@@ -179,9 +218,46 @@ class _StudentsReportsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
       children: [
+        // ===== أزرار التقارير الدورية للطلاب =====
+        const SectionHeader(
+          title: 'التقارير الدورية',
+          subtitle: 'تقارير أسبوعية وشهرية لطلاب المعلم المسؤول',
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _PeriodicReportButton(
+                label: 'تقرير أسبوعي',
+                icon: Icons.calendar_view_week_rounded,
+                color: AppColors.primary,
+                onTap: () => openPeriodicReportPicker(
+                  context,
+                  isWeekly: true,
+                  isTeacherReport: false,
+                  pathways: pathways,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PeriodicReportButton(
+                label: 'تقرير شهري',
+                icon: Icons.calendar_month_rounded,
+                color: AppColors.gold,
+                onTap: () => openPeriodicReportPicker(
+                  context,
+                  isWeekly: false,
+                  isTeacherReport: false,
+                  pathways: pathways,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
         const SectionHeader(
           title: 'أقسام الطلاب',
-          subtitle: 'اضغط على قسم لعرض طلابه وتقاريرهم',
+          subtitle: 'اضغط على قسم لعرض طلاب المعلم المسؤول وتقاريرهم',
         ),
         const SizedBox(height: 4),
         // ===== الأقسام بأيقونات دائرية (صفوف × عمودان) =====
@@ -197,7 +273,7 @@ class _StudentsReportsTab extends StatelessWidget {
                       pathway: pathways[row * 2 + col],
                       teachersService: teachersService,
                       reportsService: reportsService,
-                      subtitle: 'تقارير الطلاب',
+                      subtitle: 'طلاب المعلم المسؤول',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -218,6 +294,55 @@ class _StudentsReportsTab extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ==================== زر التقرير الدوري ====================
+
+class _PeriodicReportButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _PeriodicReportButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -321,6 +446,8 @@ class _PathwayReportItem extends StatelessWidget {
 
 // ==================== شاشة معلمي القسم ====================
 
+/// شاشة المعلمين — الجديدة: مستوى → معلمو الدروس → دروس → بطاقات يومية → تقرير يومي
+/// (بلا أقسام متون/سجلات طلاب)
 class PathwayTeachersScreen extends StatelessWidget {
   final PathwayInfo pathway;
   final TeachersService teachersService;
@@ -341,83 +468,66 @@ class PathwayTeachersScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(pathway.name),
-            Text(
-              'معلمو القسم ونشاطهم في هذا القسم',
+            const Text(
+              'معلمو الدروس في هذا القسم',
               style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
       ),
       body: WatermarkedBackground(
-        // دمج مصادر النشاط: دروس + متون
         child: StreamBuilder<List<Lesson>>(
           stream: pathway.hasLessons
               ? reportsService.watchPathwayLessons(pathway.id)
               : Stream.value(const <Lesson>[]),
           builder: (context, lessonsSnap) {
-            return StreamBuilder<List<Matna>>(
-              stream: pathway.hasMutun
-                  ? reportsService.watchPathwayMutun(pathway.id)
-                  : Stream.value(const <Matna>[]),
-              builder: (context, mutunSnap) {
-                if (lessonsSnap.hasError || mutunSnap.hasError) {
-                  return ErrorState(
-                    message: 'حدث خطأ أثناء تحميل نشاط القسم',
-                    onRetry: () {},
-                  );
-                }
-                if (!lessonsSnap.hasData || !mutunSnap.hasData) {
-                  return const ListSkeleton(itemCount: 3);
-                }
+            if (lessonsSnap.hasError) {
+              return ErrorState(
+                message: 'حدث خطأ أثناء تحميل دروس القسم',
+                onRetry: () {},
+              );
+            }
+            if (!lessonsSnap.hasData) {
+              return const ListSkeleton(itemCount: 3);
+            }
 
-                // مجمّعة حسب المعلم — من المصدرين
-                final lessonsByTeacher = <String, List<Lesson>>{};
-                for (final l in lessonsSnap.data!) {
-                  lessonsByTeacher.putIfAbsent(l.teacherId, () => []).add(l);
-                }
-                final mutunByTeacher = <String, List<Matna>>{};
-                for (final m in mutunSnap.data!) {
-                  mutunByTeacher.putIfAbsent(m.teacherId, () => []).add(m);
-                }
+            // تجميع الدروس حسب المعلم
+            final lessonsByTeacher = <String, List<Lesson>>{};
+            for (final l in lessonsSnap.data!) {
+              lessonsByTeacher.putIfAbsent(l.teacherId, () => []).add(l);
+            }
 
-                // اتحاد معرفات المعلمين (بدون تكرار) ثم فرز أبجدي
-                final teacherIds = {
-                  ...lessonsByTeacher.keys,
-                  ...mutunByTeacher.keys,
-                }.toList();
+            if (lessonsByTeacher.isEmpty) {
+              return EmptyState(
+                icon: Icons.menu_book_outlined,
+                title: 'لا توجد دروس مسجّلة',
+                message: 'لم يسجّل أي معلم دروساً في "${pathway.name}" بعد',
+              );
+            }
 
-                if (teacherIds.isEmpty) {
-                  return EmptyState(
-                    icon: Icons.menu_book_outlined,
-                    title: 'لا يوجد نشاط في هذا القسم',
-                    message: 'لم يسجّل أي معلم نشاطاً في "${pathway.name}" بعد',
-                  );
-                }
+            return StreamBuilder<List<AppUser>>(
+              stream: teachersService.watchTeachers(),
+              builder: (context, teachersSnap) {
+                final teachers = teachersSnap.data ?? [];
+                final names = {for (final t in teachers) t.uid: t.name};
 
-                return StreamBuilder<List<AppUser>>(
-                  stream: teachersService.watchTeachers(),
-                  builder: (context, teachersSnap) {
-                    final teachers = teachersSnap.data ?? [];
-                    final names = {for (final t in teachers) t.uid: t.name};
+                final teacherIds = lessonsByTeacher.keys.toList();
+                teacherIds.sort(
+                  (a, b) => (names[a] ?? 'م').compareTo(names[b] ?? 'م'),
+                );
 
-                    teacherIds.sort(
-                      (a, b) => (names[a] ?? 'م').compareTo(names[b] ?? 'م'),
-                    );
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 24),
-                      itemCount: teacherIds.length,
-                      itemBuilder: (context, index) {
-                        final teacherId = teacherIds[index];
-                        final name = names[teacherId] ?? 'معلم';
-                        return _TeacherLessonsTile(
-                          teacherName: name,
-                          lessons: lessonsByTeacher[teacherId] ?? const [],
-                          mutun: mutunByTeacher[teacherId] ?? const [],
-                          pathway: pathway,
-                          reportsService: reportsService,
-                        );
-                      },
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 24),
+                  itemCount: teacherIds.length,
+                  itemBuilder: (context, index) {
+                    final teacherId = teacherIds[index];
+                    final name = names[teacherId] ?? 'معلم';
+                    return _TeacherLessonsOnlyTile(
+                      teacherId: teacherId,
+                      teacherName: name,
+                      lessons: lessonsByTeacher[teacherId] ?? const [],
+                      pathway: pathway,
+                      reportsService: reportsService,
                     );
                   },
                 );
@@ -430,37 +540,26 @@ class PathwayTeachersScreen extends StatelessWidget {
   }
 }
 
-class _TeacherLessonsTile extends StatelessWidget {
+/// بطاقة المعلم — تعرض اسمه + دروسه فقط (بدون متون أو سجلات طلاب)
+class _TeacherLessonsOnlyTile extends StatelessWidget {
+  final String teacherId;
   final String teacherName;
   final List<Lesson> lessons;
-  final List<Matna> mutun;
   final PathwayInfo pathway;
   final ReportsService reportsService;
 
-  const _TeacherLessonsTile({
+  const _TeacherLessonsOnlyTile({
+    required this.teacherId,
     required this.teacherName,
     required this.lessons,
-    required this.mutun,
     required this.pathway,
     required this.reportsService,
   });
 
-  /// نص ملخص نشاط المعلم (دروس + متون)
-  String get _activitySummary {
-    final parts = <String>[];
-    if (lessons.isNotEmpty) {
-      parts.add(lessons.length == 1 ? 'درس واحد' : '${lessons.length} دروس');
-    }
-    if (mutun.isNotEmpty) {
-      parts.add(mutun.length == 1 ? 'متن واحد' : '${mutun.length} متون');
-    }
-    if (parts.isEmpty) return 'لا يوجد نشاط';
-    return parts.join(' • ');
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final summary = lessons.length == 1 ? 'درس واحد' : '${lessons.length} دروس';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -474,35 +573,14 @@ class _TeacherLessonsTile extends StatelessWidget {
         child: ExpansionTile(
           leading: InitialAvatar(name: teacherName),
           title: Text(teacherName, style: textTheme.titleSmall),
-          subtitle: Text(_activitySummary, style: textTheme.bodySmall),
+          subtitle: Text(summary, style: textTheme.bodySmall),
           children: [
-            // ===== الدروس =====
             for (final lesson in lessons)
               _LessonTile(
                 lesson: lesson,
                 teacherName: teacherName,
                 pathwayName: pathway.name,
                 reportsService: reportsService,
-              ),
-
-            // ===== المتون =====
-            for (final matna in mutun)
-              _MutunTile(
-                matna: matna,
-                teacherName: teacherName,
-                pathwayName: pathway.name,
-                reportsService: reportsService,
-              ),
-
-            if (lessons.isEmpty && mutun.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                child: Text(
-                  'لا يوجد نشاط مسجّل لهذا المعلم',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.inkMuted,
-                  ),
-                ),
               ),
             const SizedBox(height: 6),
           ],
@@ -3370,6 +3448,7 @@ class _TeacherAbsenceSection extends StatelessWidget {
 // ==================== شاشة طلاب القسم (كل المعلمين) ====================
 
 /// تعرض كل طلاب القسم عبر كل المعلمين — النقر على طالب ← متونه المسجلة
+/// شاشة طلاب القسم — تعرض طلاب المعلم المسؤول عن المتون والأوراد فقط
 class PathwayStudentsScreen extends StatelessWidget {
   final PathwayInfo pathway;
   final StudentsService studentsService;
@@ -3390,67 +3469,91 @@ class PathwayStudentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final wirdService = MutunWirdService();
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(pathway.name),
-            Text(
-              'طلاب القسم وتقارير المتون',
+            const Text(
+              'طلاب معلم المتون والأوراد',
               style: TextStyle(fontSize: 12, color: AppColors.inkSecondary),
             ),
           ],
         ),
       ),
       body: WatermarkedBackground(
-        child: StreamBuilder<List<Student>>(
-          // شرط واحد فقط (pathwayId) — يجلب طلاب كل المعلمين في القسم
-          stream: studentsService.watchPathwayStudentsForAdmin(
-            pathwayId: pathway.id,
-          ),
-          builder: (context, studentsSnap) {
-            if (studentsSnap.hasError) {
-              return ErrorState(
-                message: 'حدث خطأ أثناء تحميل طلاب القسم',
-                onRetry: () {},
-              );
-            }
-            if (!studentsSnap.hasData) {
+        // أولاً: نجلب UID المعلم المسؤول، ثم نجلب طلابه في هذا القسم
+        child: FutureBuilder<String?>(
+          future: wirdService.getDesignatedTeacherUid(),
+          builder: (context, uidSnap) {
+            if (uidSnap.connectionState == ConnectionState.waiting) {
               return const ListSkeleton(itemCount: 6);
             }
-
-            final students = studentsSnap.data!;
-
-            if (students.isEmpty) {
-              return EmptyState(
-                icon: Icons.school_outlined,
-                title: 'لا يوجد طلاب في هذا القسم',
-                message: 'لم يُضف أي طالب إلى "${pathway.name}" بعد',
+            final designatedUid = uidSnap.data;
+            if (designatedUid == null || designatedUid.isEmpty) {
+              return const EmptyState(
+                icon: Icons.person_off_rounded,
+                title: 'لم يُعيَّن معلم مسؤول',
+                message:
+                    'يرجى تعيين معلم المتون والأوراد من الإعدادات أولاً',
               );
             }
 
-            // أسماء المعلمين لعرض معلم كل طالب
-            return StreamBuilder<List<AppUser>>(
-              stream: teachersService.watchTeachers(),
-              builder: (context, teachersSnap) {
-                final teachers = teachersSnap.data ?? [];
-                final teacherNames = {for (final t in teachers) t.uid: t.name};
+            return StreamBuilder<List<Student>>(
+              // شرط واحد (teacherId) + فلترة pathwayId محلية — لا فهارس مركّبة
+              stream: studentsService.watchPathwayStudents(
+                teacherId: designatedUid,
+                pathwayId: pathway.id,
+              ),
+              builder: (context, studentsSnap) {
+                if (studentsSnap.hasError) {
+                  return ErrorState(
+                    message: 'حدث خطأ أثناء تحميل طلاب المعلم المسؤول',
+                    onRetry: () {},
+                  );
+                }
+                if (!studentsSnap.hasData) {
+                  return const ListSkeleton(itemCount: 6);
+                }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 24),
-                  itemCount: students.length,
-                  itemBuilder: (context, index) {
-                    final student = students[index];
-                    return _StudentReportTile(
-                      student: student,
-                      teacherName: teacherNames[student.teacherId] ?? 'معلم',
-                      pathway: pathway,
-                      studentsService: studentsService,
-                      reportsService: reportsService,
-                      mutunService: mutunService,
-                      quranService: quranService,
-                      teachersService: teachersService,
+                final students = studentsSnap.data!;
+
+                if (students.isEmpty) {
+                  return EmptyState(
+                    icon: Icons.school_outlined,
+                    title: 'لا يوجد طلاب',
+                    message:
+                        'لم يُضف المعلم المسؤول أي طالب إلى "${pathway.name}" بعد',
+                  );
+                }
+
+                return StreamBuilder<List<AppUser>>(
+                  stream: teachersService.watchTeachers(),
+                  builder: (context, teachersSnap) {
+                    final teachers = teachersSnap.data ?? [];
+                    final teacherNames = {for (final t in teachers) t.uid: t.name};
+                    final designatedName =
+                        teacherNames[designatedUid] ?? 'المعلم المسؤول';
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.only(top: 8, bottom: 24),
+                      itemCount: students.length,
+                      itemBuilder: (context, index) {
+                        final student = students[index];
+                        return _StudentReportTile(
+                          student: student,
+                          teacherName: designatedName,
+                          pathway: pathway,
+                          studentsService: studentsService,
+                          reportsService: reportsService,
+                          mutunService: mutunService,
+                          quranService: quranService,
+                          teachersService: teachersService,
+                        );
+                      },
                     );
                   },
                 );

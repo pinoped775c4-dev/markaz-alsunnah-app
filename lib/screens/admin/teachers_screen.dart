@@ -11,6 +11,7 @@ import '../../services/mutun_wird_service.dart';
 import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
+import 'settings_screen.dart';
 
 /// شاشة إدارة المعلمين — تصميم احترافي بجودة الإنتاج
 class TeachersScreen extends StatefulWidget {
@@ -60,6 +61,17 @@ class _TeachersScreenState extends State<TeachersScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'الإعدادات',
+            icon: const Icon(Icons.settings_rounded),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AdminSettingsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'تسجيل الخروج',
             icon: const Icon(Icons.logout_rounded),
@@ -113,11 +125,19 @@ class _TeachersScreenState extends State<TeachersScreen> {
                     ),
                   ),
 
-                  // بطاقة تعيين "معلم المتون والأوراد" — إعداد الإدارة
+                  // بطاقة تعيين "معلم المتون والأوراد" — تظهر فقط عند غياب التعيين
                   SliverToBoxAdapter(
-                    child: _MutunWirdDesignationCard(
-                      teachers: allTeachers,
-                      wirdService: _wirdService,
+                    child: StreamBuilder<MutunWirdDesignation>(
+                      stream: _wirdStream,
+                      builder: (ctx, wirdSnap) {
+                        final hasTeacher =
+                            wirdSnap.data?.hasDesignatedTeacher ?? false;
+                        if (hasTeacher) return const SizedBox.shrink();
+                        return _MutunWirdDesignationCard(
+                          teachers: allTeachers,
+                          wirdService: _wirdService,
+                        );
+                      },
                     ),
                   ),
 
@@ -614,6 +634,182 @@ class _DesignateWirdTeacherDialogState
                   const Text(
                     'تغيير التعيين لا يحذف ولا ينقل أي سجلات — سجلات المعلم السابق الرسمية تبقى رسمية.',
                     style: TextStyle(fontSize: 11, color: AppColors.inkMuted),
+                  ),
+                ],
+              ),
+            ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton.icon(
+          onPressed: _isSaving ? null : _save,
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.check_rounded),
+          label: const Text('حفظ التعيين'),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== Wrapper عام للحوار (يُستخدم من الإعدادات) ====================
+
+/// نسخة عامة (public) من حوار التعيين — تستخدمها شاشة الإعدادات
+class DesignateWirdTeacherDialogPublic extends StatefulWidget {
+  final List<AppUser> teachers;
+  final MutunWirdService wirdService;
+
+  const DesignateWirdTeacherDialogPublic({
+    super.key,
+    required this.teachers,
+    required this.wirdService,
+  });
+
+  @override
+  State<DesignateWirdTeacherDialogPublic> createState() =>
+      _DesignateWirdTeacherDialogPublicState();
+}
+
+class _DesignateWirdTeacherDialogPublicState
+    extends State<DesignateWirdTeacherDialogPublic> {
+  String? _selectedUid;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.wirdService.getDesignatedTeacherUid().then((uid) {
+      if (mounted) {
+        setState(() {
+          _selectedUid = uid;
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    if (_selectedUid == null) {
+      setState(() => _errorMessage = 'اختر معلماً من القائمة أولاً.');
+      return;
+    }
+    final teacher = widget.teachers.firstWhere((t) => t.uid == _selectedUid);
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    final result = await widget.wirdService.setDesignatedTeacher(
+      teacherUid: teacher.uid,
+      teacherName: teacher.name,
+      adminUid: 'admin',
+    );
+
+    if (!mounted) return;
+    if (result.success) {
+      Navigator.pop(context, true);
+      showSuccessSnackBar(context, 'تم حفظ تعيين معلم المتون والأوراد بنجاح');
+    } else {
+      setState(() {
+        _isSaving = false;
+        _errorMessage = result.errorMessage;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.how_to_reg_rounded, color: AppColors.primary),
+          const SizedBox(width: 8),
+          const Text('تعيين معلم المتون والأوراد'),
+        ],
+      ),
+      content: _isLoading
+          ? const SizedBox(
+              height: 140,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'المعلم المسؤول هو الوحيد القادر على إنشاء السجلات الرسمية',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.inkSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorSurface,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: widget.teachers.length,
+                      itemBuilder: (context, index) {
+                        final t = widget.teachers[index];
+                        final selected = _selectedUid == t.uid;
+                        return ListTile(
+                          onTap: () => setState(() => _selectedUid = t.uid),
+                          leading: Icon(
+                            selected
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.inkMuted,
+                          ),
+                          title: Text(
+                            t.name,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: (t.specialization ?? '').isNotEmpty
+                              ? Text(
+                                  t.specialization!,
+                                  style: const TextStyle(fontSize: 11),
+                                )
+                              : null,
+                          dense: true,
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),

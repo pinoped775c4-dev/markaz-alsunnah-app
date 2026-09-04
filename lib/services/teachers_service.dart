@@ -113,6 +113,25 @@ class TeachersService {
         });
   }
 
+  /// جلب المعلمين النشطين مرة واحدة (get بدل stream) — للاستخدام في الحوارات
+  Future<List<AppUser>> fetchActiveTeachers() async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'teacher')
+          .get();
+      final teachers = snapshot.docs
+          .map((doc) => AppUser.fromFirestore(doc))
+          .where((t) => t.isActive)
+          .toList();
+      teachers.sort((a, b) => a.name.compareTo(b.name));
+      return teachers;
+    } catch (e) {
+      debugPrint('TeachersService.fetchActiveTeachers error: $e');
+      return [];
+    }
+  }
+
   // ================= تفعيل / تعطيل =================
 
   Future<TeacherOpResult> setTeacherStatus(String uid, bool active) async {
