@@ -14,17 +14,15 @@ import '../../models/student.dart';
 import '../../services/mutun_service.dart';
 import '../../services/mutun_wird_service.dart';
 import '../../services/quran_service.dart';
-import '../../services/report_pdf_service.dart';
 import '../../services/reports_service.dart';
 import '../../services/students_service.dart';
 import '../../services/teachers_service.dart';
-import 'periodic_report_screen.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
 
 /// شاشة تقارير الإدارة — تبويبان:
-/// 1) تقارير المعلمين: الأقسام ← معلمو القسم ونشاطهم (دروس/متون) ← يومي/أسبوعي/شهري
-/// 2) تقارير الطلاب: الأقسام ← طلاب القسم ← متون الطالب ← بطاقات التسجيل اليومية/الأسبوعية/الشهرية
+/// 1) تقارير المعلمين: الأقسام ← معلمو القسم ونشاطهم (دروس/متون) ← تقارير يومية
+/// 2) تقارير الطلاب: الأقسام ← طلاب القسم ← متون الطالب ← بطاقات التسجيل اليومية
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -181,43 +179,6 @@ class _StudentsReportsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
       children: [
-        // ===== أزرار التقارير الدورية للطلاب =====
-        const SectionHeader(
-          title: 'التقارير الدورية',
-          subtitle: 'تقارير أسبوعية وشهرية لطلاب المعلم المسؤول',
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _PeriodicReportButton(
-                label: 'تقرير أسبوعي',
-                icon: Icons.calendar_view_week_rounded,
-                color: AppColors.primary,
-                onTap: () => openPeriodicReportPicker(
-                  context,
-                  isWeekly: true,
-                  isTeacherReport: false,
-                  pathways: pathways,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _PeriodicReportButton(
-                label: 'تقرير شهري',
-                icon: Icons.calendar_month_rounded,
-                color: AppColors.gold,
-                onTap: () => openPeriodicReportPicker(
-                  context,
-                  isWeekly: false,
-                  isTeacherReport: false,
-                  pathways: pathways,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
         const SectionHeader(
           title: 'أقسام الطلاب',
           subtitle: 'اضغط على قسم لعرض طلاب المعلم المسؤول وتقاريرهم',
@@ -261,8 +222,7 @@ class _StudentsReportsTab extends StatelessWidget {
   }
 }
 
-
-// ==================== عنصر قسم (أيقونة دائرية) ====================
+// ==================== عنصر قسم (أيقونة دائرية) ====================// ==================== عنصر قسم (أيقونة دائرية) ====================
 
 class _PathwayReportItem extends StatelessWidget {
   final PathwayInfo pathway;
@@ -603,7 +563,7 @@ class _LessonTile extends StatelessWidget {
   }
 }
 
-// ==================== شاشة تقرير الدرس (يومي + أسبوعي + شهري) ====================
+// ==================== شاشة تقرير الدرس (يومي) ====================
 
 class LessonReportScreen extends StatefulWidget {
   final Lesson lesson;
@@ -664,7 +624,6 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
     if (picked == null) return;
     setState(() => _searchDate = picked);
   }
-
 
   /// فلترة الدروس اليومية بحسب تاريخ البحث المختار
   static List<LessonDayReport> _filterByDate(
@@ -788,15 +747,6 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
               _dayKeys[r.recording.id] = GlobalKey();
             }
 
-            // البطاقات الأسبوعية والشهرية — بقاعدة ظهور الإدارة:
-            // لا تظهر إلا بعد انتهاء الفترة (جمعة 6ص للأسبوعي، نهاية الشهر للشهري)
-            final periods = _adminPeriods(
-              widget.reportsService.buildPeriodCards(
-                lesson: widget.lesson,
-                dailyReports: snapshot.data!,
-              ),
-            );
-
             if (_searchDate == null) _scrollToToday(visibleReports);
 
             return ListView(
@@ -808,6 +758,14 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                   Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.lineSoft),
+                    ),
                     child: Row(
                       children: [
                         const Icon(
@@ -858,34 +816,33 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
                       isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                     ),
 
-                // ===== التقارير الأسبوعية =====
-                if (periods.weeks.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const SectionHeader(
-                    title: 'التقارير الأسبوعية',
-                    subtitle: 'كل أسبوع منتهٍ في بطاقة — مع تصدير PDF',
+                // ===== أيام غياب المعلم (المهمة 4) =====
+                if (_searchDate == null)
+                  FutureBuilder<List<TeacherAbsence>>(
+                    future: _absencesFuture,
+                    builder: (context, absSnap) {
+                      if (!absSnap.hasData || absSnap.data!.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 16),
+                          _TeacherAbsenceSection(absences: absSnap.data!),
+                        ],
+                      );
+                    },
                   ),
-                  for (final week in periods.weeks)
-                    _PeriodCardTile(
-                      period: week,
-                      icon: Icons.date_range_rounded,
-                      dailyReports: reportsDesc,
-                      lesson: widget.lesson,
-                      teacherName: widget.teacherName,
-                      pathwayName: widget.pathwayName,
-                    ),
-                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
 
-                // ===== التقارير الشهرية =====
-                if (periods.months.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const SectionHeader(
-                    title: 'التقارير الشهرية',
-                    subtitle: 'كل شهر منتهٍ في بطاقة — مع تصدير PDF',
-                  ),
-                  for (final month in periods.months)
-                    _PeriodCardTile(
-                      period: month,
+// ==================== بطاقة التقرير اليومي ====================
 
 class _DailyReportCard extends StatelessWidget {
   final LessonDayReport report;
@@ -1074,8 +1031,7 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
-
-// ==================== شاشة تفاصيل اليوم ====================
+// ==================== شاشة تفاصيل اليوم ====================// ==================== شاشة تفاصيل اليوم ====================
 
 class DayDetailScreen extends StatelessWidget {
   final LessonDayReport report;
@@ -1464,95 +1420,7 @@ class _RatePie extends StatelessWidget {
   }
 }
 
-
-// ==================== بطاقة متن داخل المعلم ====================
-
-class _MutunTile extends StatelessWidget {
-  final Matna matna;
-  final String teacherName;
-  final String pathwayName;
-  final ReportsService reportsService;
-
-  const _MutunTile({
-    required this.matna,
-    required this.teacherName,
-    required this.pathwayName,
-    required this.reportsService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-      child: Material(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => MutunReportScreen(
-                  matna: matna,
-                  teacherName: teacherName,
-                  pathwayName: pathwayName,
-                  reportsService: reportsService,
-                ),
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    matna.isNazm
-                        ? Icons.format_list_numbered_rounded
-                        : Icons.article_rounded,
-                    color: AppColors.primary,
-                    size: 21,
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(matna.name, style: textTheme.titleSmall),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${matna.typeLabel} • ${matna.totalCount} ${matna.unitLabel}',
-                        style: textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 11),
-                const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 13,
-                  color: AppColors.inkMuted,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ==================== شاشة تقرير المتن (يومي + أسبوعي + شهري) ====================
+// ==================== شاشة تقرير المتن (يومي) ====================
 
 class MutunReportScreen extends StatefulWidget {
   final Matna matna;
@@ -1728,7 +1596,6 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
               _dayKeys[DateFormat('y-M-d').format(r.date)] = GlobalKey();
             }
 
-
             if (_searchDate == null) _scrollToToday(visibleReports);
 
             return ListView(
@@ -1803,13 +1670,13 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
                       isToday: DateUtils.isSameDay(report.date, DateTime.now()),
                     ),
 
-                // ===== التقارير الأسبوعية =====
-                if (periods.weeks.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const SectionHeader(
-                    title: 'التقارير الأسبوعية',
-                    subtitle: 'كل أسبوع منتهٍ في بطاقة',
-                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 // ==================== بطاقة ملخص تقدم المتن ====================
@@ -2219,149 +2086,147 @@ class _ActivityDayDetailScreen extends StatelessWidget {
   }
 }
 
+// ==================== المهمة 4: أيام غياب المعلم ====================// ==================== المهمة 4: أيام غياب المعلم ====================
 
-// ==================== شاشة تفاصيل فترة النشاط (أسبوع/شهر) ====================
+/// قسم أيام الغياب داخل شاشة تقرير الدرس
+class _TeacherAbsenceSection extends StatelessWidget {
+  final List<TeacherAbsence> absences;
 
-class _ActivityPeriodDetailScreen extends StatelessWidget {
-  final PeriodCard period;
-  final List<ActivityDayReport> days;
-  final String unitLabel;
-  final String completionLabel;
-  final String title;
-
-  const _ActivityPeriodDetailScreen({
-    required this.period,
-    required this.days,
-    required this.unitLabel,
-    required this.completionLabel,
-    required this.title,
-  });
+  const _TeacherAbsenceSection({required this.absences});
 
   @override
   Widget build(BuildContext context) {
-    final start = DateTime(
-      period.start.year,
-      period.start.month,
-      period.start.day,
-    );
-    final end = DateTime(period.end.year, period.end.month, period.end.day);
-    final periodDays = days
-        .where((r) => !r.date.isBefore(start) && !r.date.isAfter(end))
-        .toList();
+    final textTheme = Theme.of(context).textTheme;
 
-    final isWeek = period.id.startsWith('week');
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(period.title),
-            Text(
-              period.subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.inkSecondary,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.lineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس القسم
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.errorSurface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppRadius.lg),
               ),
             ),
-          ],
-        ),
-      ),
-      body: WatermarkedBackground(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          children: [
-            // ===== التقارير اليومية للفترة =====
-            const SectionHeader(
-              title: 'التقارير اليومية',
-              subtitle: 'اضغط على أي يوم لعرض تفاصيله',
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.event_busy_rounded,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'أيام لم يسجّل فيها المعلم الدرس',
+                    style: textTheme.titleSmall?.copyWith(
+                      color: AppColors.error,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${absences.length}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            if (periodDays.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: const Text(
-                  'لا توجد تسجيلات يومية في هذه الفترة',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.inkMuted),
-                ),
-              )
-            else
-              for (final report in periodDays)
-                _ActivityDayCard(
-                  report: report,
-                  unitLabel: unitLabel,
-                  completionLabel: completionLabel,
-                  title: title,
-                  isToday: DateUtils.isSameDay(report.date, DateTime.now()),
-                ),
-
-            // ===== ملخص الفترة في النهاية =====
-            const SizedBox(height: 16),
-            SectionHeader(
-              title: isWeek ? 'ملخص الأسبوع' : 'ملخص الشهر',
-              subtitle: 'المنجز + نسب المشاركة',
-            ),
-            _ActivityPeriodSummaryCard(period: period, unitLabel: unitLabel),
-          ],
-        ),
+          ),
+          // الأيام (سطر لكل غياب — الأحدث أولاً)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            child: absences.isEmpty
+                ? Text(
+                    'لا يوجد غياب — سجّل المعلم دروسه في كل الأيام المتوقعة',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkMuted,
+                    ),
+                  )
+                : Column(
+                    children: [
+                      for (final a in absences.take(30))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.remove_circle_outline,
+                                size: 15,
+                                color: AppColors.error,
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                '${a.weekdayLabel}، ${DateFormat('d/M/y', 'ar').format(a.date)}',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: AppColors.inkSecondary,
+                                ),
+                              ),
+                              const Spacer(),
+                              const Text(
+                                'غائب',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (absences.length > 30)
+                        Text(
+                          '… و${absences.length - 30} يومًا أقدم',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ==================== بطاقة ملخص فترة النشاط ====================
+// ============================================================================
+// ==================== تدفق تقارير الطلاب (التبويب الثاني) ====================
+// ============================================================================
 
-class _ActivityPeriodSummaryCard extends StatelessWidget {
-  final PeriodCard period;
-  final String unitLabel;
+// ==================== شاشة طلاب القسم (كل المعلمين) ====================
 
-  const _ActivityPeriodSummaryCard({
-    required this.period,
-    required this.unitLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final report = period.report;
-    final rates = report.attendanceRates.entries.toList();
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.goldSoft, width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gold.withValues(alpha: 0.1),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // رأس الملخص
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: AppColors.goldGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.insights_rounded,
-                  color: Colors.white,
-                  size: 23,
-                ),
+/// تعرض كل طلاب القسم عبر كل المعلمين — النقر على طالب ← متونه المسجلة
+/// شاشة طلاب القسم — تعرض طلاب المعلم المسؤول عن المتون والأوراد فقط
+class PathwayStudentsScreen extends StatelessWidget {
+  final PathwayInfo pathway;
+  final StudentsService studentsService;
+  final TeachersService teachersService;
+  final ReportsService reportsService;
+  final MutunService mutunService;
+  final QuranService quranService;
 
   const PathwayStudentsScreen({
     super.key,
@@ -2563,7 +2428,7 @@ class _StudentReportTile extends StatelessWidget {
 // ==================== شاشة متون الطالب ====================
 
 /// تعرض المتون التي سُجّلت للطالب (المتون فقط وليس الدروس) —
-/// النقر على متن ← بطاقات التسجيل اليومية + الأسبوعية/الشهرية الصفراء
+/// النقر على متن ← بطاقات التسجيل اليومية
 class StudentMutunScreen extends StatelessWidget {
   final Student student;
   final String teacherName;
@@ -2819,7 +2684,7 @@ class _StudentMatnaTile extends StatelessWidget {
 
 // ==================== شاشة بطاقات تقرير المتن للطالب ====================
 
-/// بطاقات التسجيل: اليومية (الأحدث أعلى) + الصفراء الأسبوعية/الشهرية
+/// بطاقات التسجيل: اليومية (الأحدث أعلى)
 /// + بطاقات غائب/لم يسمع + شاشة الرسمين الدائريين عند النقر على اليومية
 class StudentMatnaReportScreen extends StatefulWidget {
   final Matna? matna;
@@ -2870,42 +2735,6 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
         );
   }
 
-  // ===== منطق إظهار البطاقة الصفراء: الجمعة 6 صباحاً أو بعدها =====
-
-  /// هل الأسبوع المنتهي (المؤهل) صار مرئياً؟
-  /// يظهر فقط بعد الجمعة 6:00 صباحاً من الأسبوع الجاري —
-  /// أو أي أسبوع أقدم انتهى قبل الآن.
-  bool _isWeekCardVisible(DateTime weekEnd) {
-    final now = DateTime.now();
-    final endOfDay = DateTime(
-      weekEnd.year,
-      weekEnd.month,
-      weekEnd.day,
-      23,
-      59,
-      59,
-    );
-    // أسبوع انتهى بالكامل قبل الآن → مرئي دائماً
-    if (now.isAfter(endOfDay)) return true;
-    // الأسبوع الجاري — يظهر فقط الجمعة الساعة 6 صباحاً أو بعدها
-    return now.weekday == 5 && now.hour >= 6;
-  }
-
-  /// هل الشهر المنتهي (المؤهل) صار مرئياً؟
-  /// يظهر فقط في آخر يوم من الشهر أو بعده.
-  bool _isMonthCardVisible(DateTime monthEnd) {
-    final now = DateTime.now();
-    final endOfDay = DateTime(
-      monthEnd.year,
-      monthEnd.month,
-      monthEnd.day,
-      23,
-      59,
-      59,
-    );
-    return now.isAfter(endOfDay);
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -2946,7 +2775,7 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
       );
     }
 
-    // ===== بناء قائمة العناصر: بطاقات يومية + صفراء أسبوعية/شهرية =====
+    // ===== بناء قائمة العناصر: البطاقات اليومية =====
     final items = <Widget>[];
 
     // ترويسة المتن
@@ -3020,24 +2849,7 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
     final days = byDay.keys.toList()
       ..sort((a, b) => b.compareTo(a)); // الأحدث أولاً
 
-
     for (final day in days) {
-      // البطاقات الصفراء التي تنتهي في هذا اليوم (تظهر فوق اليوميات)
-      final yellows = yellowByEndDay[day];
-      if (yellows != null) {
-        for (final y in yellows) {
-          items.add(
-            _YellowPeriodCard(
-              info: y,
-              unitLabel: unitLabel,
-              totalCount: totalCount,
-              student: widget.student,
-              quranRecordings: _quranRecordings,
-            ),
-          );
-        }
-      }
-
       // البطاقة اليومية
       final dayRecs = byDay[day]!;
       items.add(
@@ -3086,23 +2898,21 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
     );
   }
 
-  static String _monthArabicName(int month) {
-    const names = [
-      'يناير',
-      'فبراير',
-      'مارس',
-      'أبريل',
-      'مايو',
-      'يونيو',
-      'يوليو',
-      'أغسطس',
-      'سبتمبر',
-      'أكتوبر',
-      'نوفمبر',
-      'ديسمبر',
-    ];
-    return names[month - 1];
-  }
+}
+
+// ==================== البطاقة اليومية للطالب ====================
+
+class _StudentDailyCard extends StatelessWidget {
+  final DateTime date;
+  final List<MutunRecording> recordings;
+  final String unitLabel;
+  final double totalCount;
+  final Student student;
+  final List<QuranRecording>? quranRecordings;
+  final VoidCallback onTap;
+
+  const _StudentDailyCard({
+    required this.date,
     required this.recordings,
     required this.unitLabel,
     required this.totalCount,
@@ -3168,6 +2978,23 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
               children: [
                 Row(
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isToday
+                            ? AppColors.primarySurface
+                            : AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$weekday، $dateText',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: isToday
+                              ? AppColors.primaryDark
+                              : AppColors.ink,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -3272,188 +3099,7 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
   }
 }
 
-
-
-// ==================== لوحة تفاصيل الفترة الصفراء ====================
-
-class _YellowPeriodDetailsSheet extends StatelessWidget {
-  final _YellowPeriodInfo info;
-  final String unitLabel;
-  final double totalCount;
-  final Student student;
-  final List<QuranRecording>? quranRecordings;
-
-  const _YellowPeriodDetailsSheet({
-    required this.info,
-    required this.unitLabel,
-    required this.totalCount,
-    required this.student,
-    required this.quranRecordings,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    final units = info.recordings
-        .where((r) => r.wasPresent)
-        .fold(0.0, (s, r) => s + r.count);
-    final lastReached = info.recordings
-        .where((r) => r.wasPresent)
-        .fold(0.0, (max, r) => r.to > max ? r.to : max);
-    final remaining = totalCount > 0 ? totalCount - lastReached : 0.0;
-    final percent = totalCount > 0
-        ? ((lastReached / totalCount).clamp(0.0, 1.0) * 100).round()
-        : 0;
-
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.goldGradient,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('تقرير ${info.title}', style: textTheme.titleMedium),
-                      Text(
-                        '${student.name} — ${DateFormat('d MMMM y', 'ar').format(info.start)} ← ${DateFormat('d MMMM y', 'ar').format(info.end)}',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.inkSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _YellowStatRow(
-              label: 'المنجز خلال الفترة',
-              value: '${fmtNum(units)} $unitLabel',
-              icon: Icons.task_alt_rounded,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 10),
-            _YellowStatRow(
-              label: 'آخر ما وصل إليه الطالب',
-              value:
-                  '${fmtNum(lastReached)} من ${fmtNum(totalCount)} $unitLabel',
-              icon: Icons.flag_rounded,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 10),
-            _YellowStatRow(
-              label: 'المتبقي من المتن',
-              value: '${fmtNum(remaining > 0 ? remaining : 0)} $unitLabel',
-              icon: Icons.pending_actions_rounded,
-              color: AppColors.goldDark,
-            ),
-            const SizedBox(height: 10),
-            _YellowStatRow(
-              label: 'نسبة إتمام المتن',
-              value: '$percent%',
-              icon: Icons.percent_rounded,
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 18),
-
-            // قائمة أيام الفترة
-            Text('أيام الفترة:', style: textTheme.titleSmall),
-            const SizedBox(height: 8),
-            ...info.recordings.map((r) {
-              final dateText = DateFormat('d MMMM y', 'ar').format(r.date);
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: r.isAbsent
-                      ? AppColors.errorSurface
-                      : r.isNotListened
-                      ? AppColors.warningSurface
-                      : AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Row(
-                  children: [
-                    if (r.isAbsent || r.isNotListened)
-                      Icon(
-                        r.isAbsent
-                            ? Icons.event_busy_rounded
-                            : Icons.hearing_disabled_rounded,
-                        size: 16,
-                        color: r.isAbsent ? AppColors.error : AppColors.warning,
-                      )
-                    else
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 16,
-                        color: AppColors.success,
-                      ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${r.weekday}، $dateText',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      r.isAbsent
-                          ? 'غائب'
-                          : r.isNotListened
-                          ? 'لم يسمع'
-                          : '${fmtNum(r.count)} $unitLabel',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: r.isAbsent
-                            ? AppColors.error
-                            : r.isNotListened
-                            ? AppColors.warning
-                            : AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==================== شاشة الرسمين الدائريين (البطاقة اليومية) ====================
+// ==================== شاشة الرسمين الدائريين (البطاقة اليومية) ====================// ==================== شاشة الرسمين الدائريين (البطاقة اليومية) ====================
 
 class _StudentDayChartsScreen extends StatelessWidget {
   final DateTime date;

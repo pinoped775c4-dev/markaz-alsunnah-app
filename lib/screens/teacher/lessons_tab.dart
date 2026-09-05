@@ -603,7 +603,7 @@ class _TypeOption extends StatelessWidget {
 // ==================== شاشة تفاصيل الدرس ====================
 
 /// شاشة تفاصيل درس عام: البطاقة الكبرى + الرسم البياني للمنجز +
-/// زر إضافة درس يومي + زر رفع تقرير للإدارة + سجل الدروس اليومية.
+/// زر إضافة درس يومي + سجل الدروس اليومية.
 class LessonDetailScreen extends StatefulWidget {
   final Lesson lesson;
   final PathwayInfo pathway;
