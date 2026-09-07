@@ -5,6 +5,11 @@
 الاختبار الإلزامي — نظام "معلم المتون والأوراد" الرسمي
 مركز السنة للعلوم الشرعية وتأهيل الدعاة
 =======================================================================
+⚠️ تنبيه أمني:
+هذا الملف مخصص للاختبار المحلي فقط. لا ترفعه لمستودع عام.
+استخدم متغيرات بيئة لمفتاح API:
+  export FIRESTORE_API_KEY="your_key_here"
+=======================================================================
 السيناريو (حرفياً كما طُلب):
 1) 10 معلمين (test_teacher_01..10) + طالب واحد لكل معلم
 2) الإدارة تعين المعلم رقم 10 معلماً للمتون والأوراد
@@ -25,6 +30,7 @@
 """
 
 import json
+import os
 import time
 import urllib.request
 import urllib.error
@@ -32,7 +38,8 @@ import sys
 
 # ==================== الإعداد ====================
 PROJECT_ID = 'calculator-7ae7b38d'
-API_KEY = 'AIzaSyCG-rrCc_EfZatMDQNXUj9vDbnNNqu4F6Y'
+# 🔒 قراءة مفتاح API من متغير بيئة (أمان) — مع قيمة افتراضية للاختبار المحلي فقط
+API_KEY = os.environ.get('FIRESTORE_API_KEY', 'AIzaSyCG-rrCc_EfZatMDQNXUj9vDbnNNqu4F6Y')
 FIRESTORE_BASE = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
 AUTH_BASE = 'https://identitytoolkit.googleapis.com/v1/accounts'
 RUN_ID = f'test{int(time.time())}'  # معرّف تشغيل فريد للعزل

@@ -43,3 +43,25 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ==================== ملفات حساسة — لا ترفع ====================
+
+# إعدادات Firebase الفعلية (مفاتيح API + معرفات التطبيق)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+
+# متغيرات البيئة (إن وُجدت)
+.env
+.env.*
+
+# ملفات النسخ الاحتياطي
+*.bak
+*.backup
+
+# pubspec.lock لتجنب تعارضات الإصدارات (اختياري للتطبيقات)
+# pubspec.lock
+
+# ملفات Python المؤقتة
+__pycache__/
+*.pyc

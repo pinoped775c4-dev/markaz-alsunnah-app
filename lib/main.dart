@@ -16,6 +16,9 @@ import 'screens/teacher/teacher_home_screen.dart';
 import 'services/auth_service.dart';
 import 'services/settings_service.dart';
 
+// مرجع AuthService الأولي — يُنشأ قبل runApp لبدء مراقبة الحالة مبكراً
+AuthService? _initialAuthService;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -27,8 +30,14 @@ Future<void> main() async {
   final settings = SettingsService();
   await settings.load();
 
-  // تهيئة Firebase (مع التعامل مع فشل الإعداد مؤقتاً)
-  bool firebaseReady = DefaultFirebaseOptions.isConfigured;
+  // تهيئة Firebase (مع التعامل مع فشل الإعداد والمنصات غير المدعومة)
+  bool firebaseReady = false;
+  try {
+    firebaseReady = DefaultFirebaseOptions.isConfigured;
+  } catch (e) {
+    // المنصة غير مدعومة (Linux/Windows)
+    debugPrint('Platform not supported for Firebase: $e');
+  }
   if (firebaseReady) {
     try {
       await Firebase.initializeApp(
@@ -48,26 +57,42 @@ Future<void> main() async {
     }
   }
 
+  // بدء الاستماع لتغييرات حالة المصادقة (إن لزم)
+  // يُستدعى هنا قبل runApp لضمان بدء المراقبة مبكراً
+  if (firebaseReady) {
+    // نُنشئ AuthService مؤقتاً لبدء المراقبة — نفس المثيل سيُستخدم في Provider
+    final authService = AuthService();
+    authService.startAuthStateListener();
+    // نحفظ المرجع ليُستخدم في Provider
+    _initialAuthService = authService;
+  }
+
   runApp(
-    IslamicCenterApp(firebaseReady: firebaseReady, settings: settings),
+    IslamicCenterApp(
+      firebaseReady: firebaseReady,
+      settings: settings,
+      authService: _initialAuthService,
+    ),
   );
 }
 
 class IslamicCenterApp extends StatelessWidget {
   final bool firebaseReady;
   final SettingsService settings;
+  final AuthService? authService;
 
   const IslamicCenterApp({
     super.key,
     required this.firebaseReady,
     required this.settings,
+    this.authService,
   });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => authService ?? AuthService()),
         ChangeNotifierProvider.value(value: settings),
       ],
       child: Consumer<SettingsService>(
@@ -124,7 +149,7 @@ class _FirebaseSetupScreen extends StatelessWidget {
               Text(
                 'تم ربط أندرويد بنجاح.\n'
                 'لتشغيل معاينة الويب: سجّل تطبيق Web في Firebase Console '
-                'للمشروع calculator-7ae7b38d ثم زوّد قيم apiKey و appId.',
+                'ثم زوّد قيم apiKey و appId في ملف firebase_options.dart.',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium?.copyWith(height: 1.7),
               ),

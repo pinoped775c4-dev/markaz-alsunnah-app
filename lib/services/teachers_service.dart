@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -234,10 +237,9 @@ class TeachersService {
   // ================= إعادة تعيين كلمة المرور =================
 
   /// إعادة تعيين كلمة المرور من قِبل المدير مباشرة:
-  /// تُخزن ككلمة مرور مؤقتة في ملف المستخدم (users) — لأن حسابات
-  /// Firebase Auth لا يمكن تعديل كلمة مرورها إلا من صاحبها.
+  /// تُخزن كـ SHA-256 hash في ملف المستخدم (users) — لا يُخزّن النص الصريح أبداً.
   /// عند تسجيل الدخول: إذا فشل دخول Firebase Auth بنجاح، يفحص
-  /// التطبيق كلمة المرور المؤقتة هذه ويمنح جلسة افتراضية.
+  /// التطبيق الـ hash المؤقت ويمنح جلسة افتراضية.
   Future<TeacherOpResult> resetTeacherPassword({
     required String uid,
     required String newPassword,
@@ -248,8 +250,12 @@ class TeachersService {
       );
     }
     try {
+      // 🔒 تشفير كلمة المرور قبل التخزين
+      final passwordHash = _hashPassword(newPassword.trim());
       await _firestore.collection('users').doc(uid).update({
-        'tempPassword': newPassword.trim(),
+        'tempPasswordHash': passwordHash,
+        // حذف أي نص صريح قديم (ترحيل من الإصدار السابق)
+        'tempPassword': FieldValue.delete(),
         'passwordUpdatedAt': FieldValue.serverTimestamp(),
       });
       return const TeacherOpResult.ok();
@@ -259,6 +265,14 @@ class TeachersService {
         'فشل حفظ كلمة المرور الجديدة، تحقق من الإنترنت وحاول مرة أخرى',
       );
     }
+  }
+
+  /// حساب SHA-256 hash لكلمة المرور مع salt
+  static String _hashPassword(String password) {
+    final salt = 'markaz_alsunnah_salt_v1';
+    final bytes = utf8.encode('$salt:$password');
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   // ================= ترجمة الأخطاء =================

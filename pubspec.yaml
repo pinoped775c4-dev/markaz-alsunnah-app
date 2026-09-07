@@ -33,6 +33,9 @@ dependencies:
   # اختيار الصورة الشخصية من المعرض
   image_picker: 1.1.2
 
+  # تشفير كلمات المرور المؤقتة (SHA-256)
+  crypto: ^3.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

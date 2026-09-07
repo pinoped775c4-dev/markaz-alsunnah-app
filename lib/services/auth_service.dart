@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -23,10 +27,38 @@ class AuthService extends ChangeNotifier {
 
   AppUser? _currentUser;
   bool _isInitialized = false;
+  StreamSubscription<User?>? _authStateSubscription;
 
   AppUser? get currentUser => _currentUser;
   bool get isInitialized => _isInitialized;
   bool get isLoggedIn => _currentUser != null;
+
+  /// بدء الاستماع لتغييرات حالة المصادقة
+  /// يُستدعى من main() بعد تهيئة Firebase.
+  /// إذا تغيّرت حالة المستخدم (انتهاء توكن، تعطيل حساب)،
+  /// يتم تحديث الحالة تلقائياً وتسجيل الخروج إن لزم.
+  void startAuthStateListener() {
+    _authStateSubscription?.cancel();
+    _authStateSubscription = _auth.authStateChanges().listen((user) async {
+      if (user == null && _currentUser != null) {
+        // المستخدم تم تسجيل خروجه أو تعطيل حسابه
+        debugPrint('Auth state changed: user signed out or disabled');
+        _currentUser = null;
+        notifyListeners();
+      } else if (user != null && _currentUser != null && user.uid != _currentUser!.uid) {
+        // المستخدم تغيّر (حدث نادر)
+        debugPrint('Auth state changed: user uid mismatch, re-fetching profile');
+        _currentUser = null;
+        notifyListeners();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
+  }
 
   /// فحص الجلسة الحالية عند بدء التطبيق (يُستدعى من شاشة البداية)
   Future<void> checkExistingSession() async {
@@ -123,9 +155,15 @@ class AuthService extends ChangeNotifier {
 
   /// محاولة دخول بكلمة المرور المؤقتة التي وضعها المدير.
   /// تعيد نتيجة دخول إذا طابقت، أو null إن لم تطابق (ليست كلمة مؤقتة).
+  /// 
+  /// 🔒 الأمان: كلمة المرور المؤقتة مخزنة كـ SHA-256 hash في Firestore،
+  /// نقارن hash المدخل مع hash المخزن (لا نقارن النص الصريح أبداً).
   Future<AuthResult?> _tryTempPasswordLogin(
       String email, String password) async {
     try {
+      // حساب hash لكلمة المرور المُدخلة
+      final inputHash = _hashPassword(password);
+
       // استعلام واحد بسيط على البريد (لا فهارس مركبة)
       final snapshot = await _firestore
           .collection('users')
@@ -145,9 +183,25 @@ class AuthService extends ChangeNotifier {
       if (docs.isEmpty) return null;
 
       final data = docs.first.data();
-      final storedTemp = data['tempPassword'] as String?;
-      if (storedTemp == null || storedTemp.isEmpty) return null;
-      if (storedTemp != password) return null;
+      final storedHash = data['tempPasswordHash'] as String?;
+      
+      // توافق مع الإصدارات القديمة: تحقق من النص الصريح (سيُحذف لاحقاً)
+      final storedPlain = data['tempPassword'] as String?;
+      
+      bool matched = false;
+      if (storedHash != null && storedHash.isNotEmpty) {
+        // المقارنة الآمنة: hash مع hash
+        matched = _secureCompare(storedHash, inputHash);
+      } else if (storedPlain != null && storedPlain.isNotEmpty) {
+        // توافق قديم: مقارنة مباشرة (قبل الترحيل)
+        matched = storedPlain == password;
+        // ترحيل فوري: استبدال النص الصريح بالـ hash
+        if (matched) {
+          await _migratePasswordToHash(docs.first.id, password);
+        }
+      }
+      
+      if (!matched) return null;
 
       // كلمة المرور المؤقتة صحيحة — بناء الجلسة من ملف Firestore
       final profile = AppUser(
@@ -174,6 +228,39 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       debugPrint('AuthService._tryTempPasswordLogin error: $e');
       return null;
+    }
+  }
+
+  /// حساب SHA-256 hash لكلمة المرور مع salt
+  static String _hashPassword(String password) {
+    final salt = 'markaz_alsunnah_salt_v1';
+    final bytes = utf8.encode('$salt:$password');
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// مقارنة آمنة لمنع timing attacks
+  static bool _secureCompare(String a, String b) {
+    if (a.length != b.length) return false;
+    int result = 0;
+    for (int i = 0; i < a.length; i++) {
+      result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return result == 0;
+  }
+
+  /// ترحيل كلمة المرور من النص الصريح إلى hash (تلقائي عند أول دخول ناجح)
+  Future<void> _migratePasswordToHash(String uid, String plainPassword) async {
+    try {
+      final hash = _hashPassword(plainPassword);
+      await _firestore.collection('users').doc(uid).update({
+        'tempPasswordHash': hash,
+        'tempPassword': FieldValue.delete(), // حذف النص الصريح
+        'passwordMigratedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('Password migrated to hash for user: $uid');
+    } catch (e) {
+      debugPrint('Password migration failed: $e');
     }
   }
 

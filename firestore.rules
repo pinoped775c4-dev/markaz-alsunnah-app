@@ -5,18 +5,13 @@ rules_version = '2';
 // =====================================================================
 // ملاحظة نشر مهمة: هذا الملف جاهز للنشر عبر Firebase Console:
 //   Firestore Database -> Rules -> لصق المحتوى -> Publish
-// (Firebase CLI غير موثّق في هذه البيئة — النشر اليدوي عبر Console)
 //
-// الفئات المحمية:
-// 1) app_settings/mutun_wird: القراءة للجميع (المعلمون يحتاجونها
-//    لمعرفة المعلم المسؤول) — الكتابة للمدير فقط.
-// 2) mutun + mutun_recordings + quran_recordings:
-//    - إنشاء سجل رسمي (isOfficial == true): يتطلب أن يكون الكاتب
-//      هو معلم المتون والأوراد المخصص في app_settings/mutun_wird.
-//    - سجل غير رسمي (isOfficial != true) أو قديم (بلا علامة):
-//      متاح لأي معلم — بلا حذف (القاعدة تمنع انتحال الإسناد فقط).
-// 3) بقية المجموعات: كما في القواعد الأصلية (المصادقة مطلوبة،
-//    وملف users يُقرأ/يُكتب لصاحبه).
+// مبدأ الصلاحيات:
+// - المدير (admin): صلاحية كاملة على كل البيانات.
+// - المعلم (teacher): يقرأ ويكتب بياناته الخاصة فقط (طلابه، دروسه،
+//   تسجيلاته). لا يصل لبيانات معلم آخر ولا يحذفها.
+// - معلم المتون والأوراد المخصص: يضيف سجلات رسمية (isOfficial=true).
+// - أي مستخدم مسجل: يقرأ ملفه الشخصي فقط.
 // =====================================================================
 
 service cloud.firestore {
@@ -24,18 +19,35 @@ service cloud.firestore {
 
     // ==================== دوال مساعدة ====================
 
+    // هل المستخدم مسجل الدخول؟
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // وثيقة المستخدم الحالي
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
+    // هل المستخدم مدير؟
     function isAdmin() {
       return isSignedIn()
           && exists(/databases/$(database)/documents/users/$(request.auth.uid))
           && userDoc().data.role == 'admin';
+    }
+
+    // هل المستخدم معلم؟
+    function isTeacher() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && userDoc().data.role == 'teacher';
+    }
+
+    // هل المستخدم مدير أو معلم؟ (أي مستخدم مسموح له بالعمل)
+    function isAuthorized() {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && (userDoc().data.role == 'admin' || userDoc().data.role == 'teacher');
     }
 
     // معلم المتون والأوراد المخصص في app_settings/mutun_wird
@@ -55,90 +67,234 @@ service cloud.firestore {
     }
 
     // ==================== app_settings ====================
-
-    // وثيقة إعداد معلم المتون والأوراد:
-    // القراءة متاحة للمعلمين (كل معلم يحتاج معرفة من المسؤول) —
-    // الكتابة للمدير فقط (التعيين/التغيير).
+    // إعدادات التطبيق (تعيين معلم المتون والأوراد):
+    // - القراءة: للمدير ومعلم المتون والأوراد فقط
+    // - الكتابة: للمدير فقط
     match /app_settings/{docId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
-    }
-
-    // ==================== users ====================
-
-    // ملف المستخدم: قراءة الملف الذاتي والمدير، الكتابة لصاحبه
-    match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && (isAdmin() || isDesignatedWirdTeacher());
+      allow create, update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ==================== teachers/students/lessons ====================
-    // (كما كانت — المصادقة مطلوبة فقط)
+    // ==================== users ====================
+    // ملف المستخدم:
+    // - قراءة الملف الذاتي: مسموح
+    // - قراءة كل الملفات: المدير فقط
+    // - إنشاء/تعديل الملف الذاتي: مسموح (للتسجيل الأولي)
+    // - تعديل أي ملف: المدير فقط
+    // - حذف: المدير فقط
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin())
+          // منع المستخدم العادي من ترقية نفسه إلى مدير
+          && (isAdmin() || !request.resource.data.role != 'admin'
+              || request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
 
+    // ==================== students ====================
+    // الطلاب:
+    // - القراءة: المدير + المعلم صاحب الطلاب فقط
+    // - الكتابة: المدير + المعلم صاحب الطلاب فقط
+    // - الحذف: المدير + المعلم صاحب الطلاب فقط
     match /students/{doc} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
     }
 
+    // ==================== lessons ====================
+    // الدروس:
+    // - القراءة: المدير + المعلم صاحب الدرس
+    // - الكتابة: المدير + المعلم صاحب الدرس
+    // - الحذف: المدير + المعلم صاحب الدرس
     match /lessons/{doc} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
     }
 
+    // ==================== lesson_recordings ====================
+    // تسجيلات الدروس اليومية:
+    // - القراءة: المدير + المعلم صاحب التسجيل
+    // - الكتابة: المدير + المعلم صاحب التسجيل
+    // - الحذف: المدير + المعلم صاحب التسجيل
     match /lesson_recordings/{doc} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
     }
 
+    // ==================== attendance ====================
+    // سجلات الحضور:
+    // - مرتبطة بـ lessonId (وليس teacherId مباشرة)
+    // - نسمح بقراءتها/كتابتها للمدير أو المعلم صاحب الدرس المرتبط
     match /attendance/{doc} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow create: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+      );
+      allow update: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+      );
     }
 
-    // ==================== المتون والأوراد الرسمية ====================
-
-    // المتون: إنشاء المتون الرسمية (isOfficial == true) للمعلم
-    // المسؤول فقط؛ غير الرسمية لأي معلم.
+    // ==================== mutun ====================
+    // المتون (مقررات الحفظ):
+    // - القراءة: كل مستخدم مسجل (المعلمون يحتاجون معرفة المقررات)
+    // - إنشاء رسمي (isOfficial=true): معلم المتون والأوراد المخصص فقط
+    // - إنشاء غير رسمي: المعلم صاحب المتن فقط
+    // - حذف رسمي: المعلم المسؤول فقط
+    // - حذف غير رسمي: المعلم المسؤول أو صاحب المتن
     match /mutun/{doc} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || request.resource.data.teacherId == request.auth.uid
+          );
       allow update: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
-      allow delete: if isSignedIn();
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || resource.data.teacherId == request.auth.uid
+          );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || resource.data.teacherId == request.auth.uid
+      );
     }
 
-    // تسجيلات المتون (تسميع/تقدم):
-    // السجل الرسمي يُنشأه المعلم المسؤول فقط؛ غير الرسمي لأي معلم.
+    // ==================== mutun_recordings ====================
+    // تسجيلات التسميع/الحفظ:
+    // - القراءة: المدير + المعلم صاحب التسجيل + معلم المتون والأوراد
+    // - إنشاء رسمي: المعلم المسؤول المخصص فقط
+    // - إنشاء غير رسمي: المعلم صاحب التسجيل
+    // - حذف رسمي: المعلم المسؤول فقط
+    // - حذف غير رسمي: المعلم المسؤول أو صاحب التسجيل
     match /mutun_recordings/{doc} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || (isTeacher() && resource.data.studentId != null
+              // المعلم يقدر يقرأ تسجيلات طلابه
+              && exists(/databases/$(database)/documents/students/$(resource.data.studentId)))
+          || isDesignatedWirdTeacher()
+      );
       allow create: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || request.resource.data.teacherId == request.auth.uid
+          );
       allow update: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
-      allow delete: if isSignedIn();
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || resource.data.teacherId == request.auth.uid
+          );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || resource.data.teacherId == request.auth.uid
+      );
     }
 
-    // تسجيلات القرآن (الأوراد):
-    // الورد الرسمي يُنشئه المعلم المسؤول فقط.
+    // ==================== quran_recordings ====================
+    // تسجيلات الأوراد القرآنية:
+    // - نفس منطق mutun_recordings
+    // - الورد الرسمي: المعلم المسؤول المخصص فقط
     match /quran_recordings/{doc} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+          isAdmin()
+          || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || (isTeacher() && resource.data.studentId != null
+              && exists(/databases/$(database)/documents/students/$(resource.data.studentId)))
+          || isDesignatedWirdTeacher()
+      );
       allow create: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || request.resource.data.teacherId == request.auth.uid
+          );
       allow update: if isSignedIn()
-          && (request.resource.data.isOfficial != true
-              || isDesignatedWirdTeacher());
-      allow delete: if isSignedIn();
+          && (
+              request.resource.data.isOfficial != true
+              || isDesignatedWirdTeacher()
+          )
+          && (
+              isAdmin()
+              || resource.data.teacherId == request.auth.uid
+          );
+      allow delete: if isSignedIn() && (
+          isAdmin()
+          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || resource.data.teacherId == request.auth.uid
+      );
     }
   }
 }

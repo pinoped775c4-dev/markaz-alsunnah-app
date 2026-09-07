@@ -1,16 +1,144 @@
-# islamic_center_manager
+# مركز السنة للعلوم الشرعية وتأهيل الدعاة
 
-A new Flutter project.
+تطبيق Flutter لإدارة مركز السنة للعلوم الشرعية وتأهيل الدعاة في شبوة - عتق.  
+نظام متكامل لإدارة المعلمين والطلاب والدروس والمتون والأوراد القرآنية مع تقارير شاملة.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🏗️ البنية التقنية
 
-A few resources to get you started if this is your first Flutter project:
+| العنصر | التقنية |
+|--------|---------|
+| الإطار | Flutter 3.x |
+| اللغة | Dart ^3.9.2 |
+| قاعدة البيانات | Firebase Firestore |
+| المصادقة | Firebase Authentication |
+| إدارة الحالة | Provider |
+| التخزين المحلي | SharedPreferences |
+| الرسوم البيانية | fl_chart |
+| الخط العربي | IBM Plex Sans Arabic |
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 📁 هيكل المشروع
+
+```
+lib/
+├── core/                  # الثوابت والتصميم
+│   ├── constants.dart     # إعدادات المسارات والثوابت
+│   └── theme.dart         # نظام التصميم (Light/Dark)
+├── models/                # نماذج البيانات
+│   ├── app_user.dart      # المستخدم (مدير/معلم)
+│   ├── student.dart       # الطالب
+│   ├── lesson.dart        # الدرس + التسجيل اليومي
+│   ├── matna.dart         # المتن + تسجيل الحفظ
+│   └── quran.dart         # الورد القرآني + ملخص التقدم
+├── screens/               # الشاشات
+│   ├── admin/             # لوحة المدير
+│   ├── auth/              # تسجيل الدخول
+│   ├── splash/            # شاشة البداية
+│   └── teacher/           # لوحة المعلم
+├── services/              # الخدمات
+│   ├── auth_service.dart  # المصادقة والجلسات
+│   ├── lessons_service.dart
+│   ├── students_service.dart
+│   ├── teachers_service.dart
+│   ├── mutun_service.dart
+│   ├── mutun_wird_service.dart  # معلم المتون والأوراد المخصص
+│   ├── quran_service.dart
+│   ├── reports_service.dart
+│   └── settings_service.dart
+├── widgets/               # عناصر UI مشتركة
+│   ├── branding.dart      # الشعار والعلامة المائية
+│   └── common_widgets.dart
+├── firebase_options.dart  # إعدادات Firebase لكل منصة
+└── main.dart              # نقطة الدخول
+```
+
+---
+
+## 🚀 التشغيل
+
+### المتطلبات
+- Flutter SDK 3.x
+- Dart SDK ^3.9.2
+- Firebase project مُعد (Android + Web)
+
+### الخطوات
+
+```bash
+# 1. استنساخ المستودع
+git clone https://github.com/pinoped775c4-dev/markaz-alsunnah-app.git
+cd markaz-alsunnah-app
+
+# 2. تثبيت الحزم
+flutter pub get
+
+# 3. إعداد Firebase
+#    - انسخ google-services.json إلى android/app/
+#    - حدّث lib/firebase_options.dart بقيم مشروعك
+
+# 4. التشغيل
+flutter run
+```
+
+---
+
+## 🔐 الأمان
+
+### Firestore Rules
+القواعد في `firestore.rules` تُطبّق مبدأ الصلاحيات الأدنى:
+- **المدير**: صلاحية كاملة
+- **المعلم**: يقرأ/يكتب بياناته فقط (طلبه، دروسه، تسجيلاته)
+- **معلم المتون والأوراد**: يُعيَّن من المدير لإنشاء سجلات رسمية (`isOfficial=true`)
+
+### كلمات المرور المؤقتة
+كلمات المرور التي يعيد المدير تعيينها تُخزَّن كـ **SHA-256 hash** مع salt — لا يُخزَّن النص الصريح أبداً.
+
+### مفاتيح Firebase
+- `google-services.json` مُضاف إلى `.gitignore`
+- المستودع يجب أن يكون **خاصاً** (Private) على GitHub
+- يمكن استخدام متغيرات بيئة (`FIRESTORE_API_KEY`) لتجاوز القيم المدمجة
+
+---
+
+## 👥 الأدوار
+
+### المدير (Admin)
+- إنشاء وتعطيل وحذف حسابات المعلمين
+- تعيين "معلم المتون والأوراد" المسؤول
+- عرض التقارير الشاملة لكل المسارات
+- إعادة تعيين كلمات مرور المعلمين
+
+### المعلم (Teacher)
+- إدارة طلابه في 5 مسارات تعليمية
+- تسجيل الدروس اليومية مع الحضور والغياب
+- تسجيل حفظ المتون (للمعلم المسؤول فقط)
+- تسجيل الأوراد القرآنية (للمعلم المسؤول فقط)
+- متابعة تقدم طلابه عبر التقارير
+
+### المسارات التعليمية
+1. **مفاتيح الطلب** — المرحلة التأسيسية
+2. **معارج التحصيل ①** — المستوى الأول
+3. **معارج التحصيل ②** — المستوى الثاني
+4. **معارج التحصيل ③** — المستوى الثالث
+5. **القرآن الكريم** — متابعة الأوراد والختمات
+
+---
+
+## 📝 ملاحظات التطوير
+
+### Firestore Indexes
+التطبيق يتجنب الفهارس المركّبة عمداً — يستخدم شرط `where` واحد فقط ثم يرشّح محلياً. هذا يبسط الإعداد لكن قد لا يناسب البيانات الكبيرة جداً.
+
+### Optimistic Updates
+عند إنشاء/تعديل/حذف سجل، يُبنى النموذج محلياً ويُعرض فوراً قبل وصول بث Firestore. هذا يحسّن الإحساس بالأداء.
+
+### Cache
+الكاش المحلي الدائم لـ Firestore مُفعّل (`persistenceEnabled: true`) — يضمن عمل التطبيق حتى بدون اتصال.
+
+---
+
+## 📄 الترخيص
+
+مشروع خاص — مركز السنة للعلوم الشرعية وتأهيل الدعاة.

@@ -626,6 +626,9 @@ class ReportsService {
   ///
   /// كل استعلام بشرط where واحد فقط (studentId أو teacherId) —
   /// الفلترة على pathwayId تتم محليًا لتفادي الفهارس المركّبة.
+  ///
+  /// ✅ مُحسّن: استعلامات المتون مُرشّحة بـ teacherId لتجنب
+  /// جلب كل المتون من كل المعلمين (مشكلة الأداء عند كبر البيانات).
   Future<StudentReport> buildStudentReport(Student student) async {
     final results = await Future.wait([
       // حضور الطالب في دروس المعلم
@@ -638,8 +641,11 @@ class ReportsService {
           .collection('lesson_recordings')
           .where('teacherId', isEqualTo: student.teacherId)
           .get(),
-      // متون المعلم + تسجيلات متون الطالب
-      _firestore.collection('mutun').get(),
+      // ✅ متون المعلم فقط (بدلاً من جلب كل المتون من كل المعلمين)
+      _firestore
+          .collection('mutun')
+          .where('teacherId', isEqualTo: student.teacherId)
+          .get(),
       _firestore
           .collection('mutun_recordings')
           .where('studentId', isEqualTo: student.id)
@@ -718,10 +724,10 @@ class ReportsService {
     }
 
     // ===== متون الطالب =====
+    // ✅ الاستعلام مُرشّح بـ teacherId مسبقاً — نحتاج فقط فلترة المسار محلياً
     final matnaById = <String, Matna>{};
     for (final d in results[2].docs) {
       final data = d.data();
-      if (data['teacherId'] != student.teacherId) continue;
       if (data['pathwayId'] != student.pathwayId) continue;
       matnaById[d.id] = Matna.fromFirestore(d);
     }
