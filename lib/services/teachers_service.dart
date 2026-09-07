@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import '../models/app_user.dart';
+import 'auth_service.dart';
 import 'mutun_wird_service.dart';
 
 /// نتيجة عملية على المعلمين
@@ -251,7 +252,7 @@ class TeachersService {
     }
     try {
       // 🔒 تشفير كلمة المرور قبل التخزين
-      final passwordHash = _hashPassword(newPassword.trim());
+      final passwordHash = AuthService.hashPassword(newPassword.trim());
       await _firestore.collection('users').doc(uid).update({
         'tempPasswordHash': passwordHash,
         // حذف أي نص صريح قديم (ترحيل من الإصدار السابق)
@@ -265,14 +266,6 @@ class TeachersService {
         'فشل حفظ كلمة المرور الجديدة، تحقق من الإنترنت وحاول مرة أخرى',
       );
     }
-  }
-
-  /// حساب SHA-256 hash لكلمة المرور مع salt
-  static String _hashPassword(String password) {
-    final salt = 'markaz_alsunnah_salt_v1';
-    final bytes = utf8.encode('$salt:$password');
-    final digest = sha256.convert(bytes);
-    return digest.toString();
   }
 
   // ================= ترجمة الأخطاء =================
