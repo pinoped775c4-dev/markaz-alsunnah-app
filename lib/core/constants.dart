@@ -61,9 +61,6 @@ class AppConstants {
   /// مسار شعار المركز (يُستخدم دائرياً وكخلفية مائية)
   static const String logoAsset = 'assets/images/logo_watermark.png';
 
-  /// نقوش إسلامية للخلفية (خفيفة وشفافة — تتكرر على كامل الشاشة)
-  static const String patternAsset = 'assets/images/pattern_islamic.png';
-
   /// صيغة جمع كلمة "طالب" حسب العدد (قواعد الجمع العربية)
   /// 0 = لا يوجد طلاب | 1 = طالب واحد | 2 = طالبان | 3-10 = طلاب | 11+ = طالباً
   static String studentsCountText(int count) {

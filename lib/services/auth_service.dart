@@ -146,7 +146,7 @@ class AuthService extends ChangeNotifier {
       final tempResult = await _tryTempPasswordLogin(email.trim(), password);
       if (tempResult != null) return tempResult;
 
-      return AuthResult.failure(_mapAuthError(e));
+      return AuthResult.failure(mapFirebaseError(e));
     } catch (e) {
       debugPrint('AuthService.signIn error: $e');
       return const AuthResult.failure('حدث خطأ في الاتصال، تحقق من الإنترنت وحاول مرة أخرى');
@@ -304,7 +304,7 @@ class AuthService extends ChangeNotifier {
       await _auth.sendPasswordResetEmail(email: email.trim());
       return null; // نجاح
     } on FirebaseAuthException catch (e) {
-      return _mapAuthError(e);
+      return mapFirebaseError(e);
     } catch (e) {
       return 'حدث خطأ في الاتصال، حاول مرة أخرى';
     }
@@ -346,7 +346,7 @@ class AuthService extends ChangeNotifier {
   }
 
   /// ترجمة أخطاء Firebase إلى رسائل عربية واضحة
-  String _mapAuthError(FirebaseAuthException e) {
+  static String mapFirebaseError(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
         return 'صيغة البريد الإلكتروني غير صحيحة';
