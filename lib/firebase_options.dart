@@ -1,4 +1,4 @@
-// إعدادات Firebase — قيم أندرويد مأخوذة من google-services.json (المشروع: calculator-7ae7b38d)
+// إعدادات Firebase — المشروع: markaz-alsunnah-v2
 //
 // ⚠️ تنبيه أمني:
 // هذا الملف يحتوي على مفاتيح API. عند نشر المستودع:
@@ -42,21 +42,21 @@ class DefaultFirebaseOptions {
 
   // ================= إعدادات الويب =================
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCG-rrCc_EfZatMDQNXUj9vDbnNNqu4F6Y',
-    appId: '1:79484274758:web:2febb5f5569430f0012247',
-    messagingSenderId: '79484274758',
-    projectId: 'calculator-7ae7b38d',
-    authDomain: 'calculator-7ae7b38d.firebaseapp.com',
-    storageBucket: 'calculator-7ae7b38d.firebasestorage.app',
+    apiKey: 'AIzaSyAw5vPzceyebCHl3ELHjxmrpgp8nuZ2pm8',
+    appId: '1:375730954362:web:863530d527d7ad89ca1bc3',
+    messagingSenderId: '375730954362',
+    projectId: 'markaz-alsunnah-v2',
+    authDomain: 'markaz-alsunnah-v2.firebaseapp.com',
+    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
   );
 
   // ================= إعدادات أندرويد =================
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDj3xXojV3Om2yw1mdMfgP8SONP4s9MqHk',
-    appId: '1:79484274758:android:5d0e59bc21ac3a1a012247',
-    messagingSenderId: '79484274758',
-    projectId: 'calculator-7ae7b38d',
-    storageBucket: 'calculator-7ae7b38d.firebasestorage.app',
+    apiKey: 'AIzaSyAOlJAQ9lvR6E9-8x_KmKtQ4Gazc-OJkng',
+    appId: '1:375730954362:android:0177c18e268e4af1ca1bc3',
+    messagingSenderId: '375730954362',
+    projectId: 'markaz-alsunnah-v2',
+    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
   );
 
   // ================= إعدادات iOS =================
@@ -65,9 +65,9 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'iOS_API_KEY_HERE',
     appId: 'iOS_APP_ID_HERE',
-    messagingSenderId: '79484274758',
-    projectId: 'calculator-7ae7b38d',
-    storageBucket: 'calculator-7ae7b38d.firebasestorage.app',
+    messagingSenderId: '375730954362',
+    projectId: 'markaz-alsunnah-v2',
+    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
     iosBundleId: 'com.markaz.alsunnah',
   );
 
@@ -76,9 +76,9 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'macOS_API_KEY_HERE',
     appId: 'macOS_APP_ID_HERE',
-    messagingSenderId: '79484274758',
-    projectId: 'calculator-7ae7b38d',
-    storageBucket: 'calculator-7ae7b38d.firebasestorage.app',
+    messagingSenderId: '375730954362',
+    projectId: 'markaz-alsunnah-v2',
+    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
     iosBundleId: 'com.markaz.alsunnah',
   );
 }
