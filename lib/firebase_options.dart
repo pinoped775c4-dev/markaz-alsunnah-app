@@ -1,4 +1,4 @@
-// إعدادات Firebase — المشروع: markaz-alsunnah-v2
+// إعدادات Firebase — المشروع: markaz-aloom
 //
 // ⚠️ تنبيه أمني:
 // هذا الملف يحتوي على مفاتيح API. عند نشر المستودع:
@@ -42,21 +42,22 @@ class DefaultFirebaseOptions {
 
   // ================= إعدادات الويب =================
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAw5vPzceyebCHl3ELHjxmrpgp8nuZ2pm8',
-    appId: '1:375730954362:web:863530d527d7ad89ca1bc3',
-    messagingSenderId: '375730954362',
-    projectId: 'markaz-alsunnah-v2',
-    authDomain: 'markaz-alsunnah-v2.firebaseapp.com',
-    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
+    apiKey: 'AIzaSyCQeoGL6kaH_KhyNHGXWY9uCKoGkGISx78',
+    appId: '1:645926213470:web:2e943f6851b4c97b6161cf',
+    messagingSenderId: '645926213470',
+    projectId: 'markaz-aloom',
+    authDomain: 'markaz-aloom.firebaseapp.com',
+    storageBucket: 'markaz-aloom.firebasestorage.app',
+    measurementId: 'G-57TN17MWK1',
   );
 
   // ================= إعدادات أندرويد =================
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAOlJAQ9lvR6E9-8x_KmKtQ4Gazc-OJkng',
-    appId: '1:375730954362:android:0177c18e268e4af1ca1bc3',
-    messagingSenderId: '375730954362',
-    projectId: 'markaz-alsunnah-v2',
-    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
+    apiKey: 'AIzaSyAsMia_Hez99yixJC6KOjJN99oN3-jKmTs',
+    appId: '1:645926213470:android:69f16c2a86159c156161cf',
+    messagingSenderId: '645926213470',
+    projectId: 'markaz-aloom',
+    storageBucket: 'markaz-aloom.firebasestorage.app',
   );
 
   // ================= إعدادات iOS =================
@@ -65,20 +66,21 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'iOS_API_KEY_HERE',
     appId: 'iOS_APP_ID_HERE',
-    messagingSenderId: '375730954362',
-    projectId: 'markaz-alsunnah-v2',
-    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
+    messagingSenderId: '645926213470',
+    projectId: 'markaz-aloom',
+    storageBucket: 'markaz-aloom.firebasestorage.app',
     iosBundleId: 'com.markaz.alsunnah',
   );
 
   // ================= إعدادات macOS =================
   // TODO: سجّل تطبيق macOS في Firebase Console وأضف القيم هنا
+  // Firebase Console → Project Settings → Add app → macOS
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'macOS_API_KEY_HERE',
     appId: 'macOS_APP_ID_HERE',
-    messagingSenderId: '375730954362',
-    projectId: 'markaz-alsunnah-v2',
-    storageBucket: 'markaz-alsunnah-v2.firebasestorage.app',
+    messagingSenderId: '645926213470',
+    projectId: 'markaz-aloom',
+    storageBucket: 'markaz-aloom.firebasestorage.app',
     iosBundleId: 'com.markaz.alsunnah',
   );
 }
