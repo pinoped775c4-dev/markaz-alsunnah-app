@@ -589,23 +589,12 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
   // مفاتيح البطاقات اليومية للانتقال التلقائي إلى اليوم الحالي
   final Map<String, GlobalKey> _dayKeys = {};
 
-  Future<List<LessonDayReport>>? _future;
-
-  // أيام غياب المعلم (المهمة 4) — تُحمّل مرة واحدة مع التقرير
-  Future<List<TeacherAbsence>>? _absencesFuture;
-
   // البحث بالتاريخ — null يعني عرض كل الدروس اليومية
   DateTime? _searchDate;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.reportsService.buildLessonDailyReports(widget.lesson);
-    _absencesFuture = widget.reportsService.buildTeacherAbsenceDays(
-      teacherId: widget.lesson.teacherId,
-      pathwayId: widget.lesson.pathwayId,
-      lessonId: widget.lesson.id,
-    );
   }
 
   /// نافذة اختيار تاريخ البحث عن الدروس اليومية
@@ -710,18 +699,14 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
         ],
       ),
       body: WatermarkedBackground(
-        child: FutureBuilder<List<LessonDayReport>>(
-          future: _future,
+        child: StreamBuilder<List<LessonDayReport>>(
+          stream: widget.reportsService.watchLessonDailyReports(widget.lesson),
           builder: (context, snapshot) {
             final textTheme = Theme.of(context).textTheme;
             if (snapshot.hasError) {
               return ErrorState(
                 message: 'حدث خطأ أثناء تحميل التقرير',
-                onRetry: () => setState(() {
-                  _future = widget.reportsService.buildLessonDailyReports(
-                    widget.lesson,
-                  );
-                }),
+                onRetry: () => setState(() {}),
               );
             }
             if (!snapshot.hasData) {
@@ -818,8 +803,12 @@ class _LessonReportScreenState extends State<LessonReportScreen> {
 
                 // ===== أيام غياب المعلم (المهمة 4) =====
                 if (_searchDate == null)
-                  FutureBuilder<List<TeacherAbsence>>(
-                    future: _absencesFuture,
+                  StreamBuilder<List<TeacherAbsence>>(
+                    stream: widget.reportsService.watchTeacherAbsenceDays(
+                      teacherId: widget.lesson.teacherId,
+                      pathwayId: widget.lesson.pathwayId,
+                      lessonId: widget.lesson.id,
+                    ),
                     builder: (context, absSnap) {
                       if (!absSnap.hasData || absSnap.data!.isEmpty) {
                         return const SizedBox.shrink();
@@ -1446,15 +1435,12 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
   // مفاتيح البطاقات اليومية للانتقال التلقائي إلى اليوم الحالي
   final Map<String, GlobalKey> _dayKeys = {};
 
-  Future<MutunReportData>? _future;
-
   // البحث بالتاريخ — null يعني عرض كل التسجيلات اليومية
   DateTime? _searchDate;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.reportsService.buildMutunDailyReports(widget.matna);
   }
 
   /// نافذة اختيار تاريخ البحث عن التسجيلات اليومية
@@ -1557,18 +1543,14 @@ class _MutunReportScreenState extends State<MutunReportScreen> {
         ],
       ),
       body: WatermarkedBackground(
-        child: FutureBuilder<MutunReportData>(
-          future: _future,
+        child: StreamBuilder<MutunReportData>(
+          stream: widget.reportsService.watchMutunDailyReports(widget.matna),
           builder: (context, snapshot) {
             final textTheme = Theme.of(context).textTheme;
             if (snapshot.hasError) {
               return ErrorState(
                 message: 'حدث خطأ أثناء تحميل التقرير',
-                onRetry: () => setState(() {
-                  _future = widget.reportsService.buildMutunDailyReports(
-                    widget.matna,
-                  );
-                }),
+                onRetry: () => setState(() {}),
               );
             }
             if (!snapshot.hasData) {

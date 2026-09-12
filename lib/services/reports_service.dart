@@ -616,6 +616,191 @@ class ReportsService {
   }
 
 
+  // ================= تقارير مُحدّثة تلقائيًا (Streams) =================
+
+  /// بث تقرير الدرس اليومي — يتحدث تلقائيًا عند إضافة/تعديل/حذف تسجيل
+  Stream<List<LessonDayReport>> watchLessonDailyReports(Lesson lesson) {
+    // نجمع البثات الثلاثة الرئيسية (تسجيلات + حضور + طلاب)
+    // ونبني التقرير من جديد عند أي تغيير
+    return _firestore
+        .collection('lesson_recordings')
+        .where('lessonId', isEqualTo: lesson.id)
+        .snapshots()
+        .asyncMap((recordingsSnap) async {
+      final attendanceSnap = await _firestore
+          .collection('attendance')
+          .where('lessonId', isEqualTo: lesson.id)
+          .get();
+      final studentsSnap = await _firestore
+          .collection('students')
+          .where('teacherId', isEqualTo: lesson.teacherId)
+          .get();
+
+      final studentNames = <String, String>{
+        for (final d in studentsSnap.docs)
+          if (d.data()['pathwayId'] == lesson.pathwayId)
+            d.id: (d.data()['name'] as String?) ?? 'طالب',
+      };
+
+      final attendanceByRecording = <String, Map<String, dynamic>>{};
+      for (final doc in attendanceSnap.docs) {
+        final data = doc.data();
+        final recId = data['recordingId'] as String?;
+        if (recId != null) attendanceByRecording[recId] = data;
+      }
+
+      final recordings = recordingsSnap.docs
+          .map((d) => LessonRecording.fromFirestore(d))
+          .toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+
+      return recordings.map((rec) {
+        final att = attendanceByRecording[rec.id];
+
+        List<String> absentNames = [];
+        List<String> presentNames = [];
+        int presentCount = rec.presentCount;
+        int totalStudents = rec.totalStudents;
+
+        if (att != null) {
+          final absentIds =
+              (att['absentStudentIds'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          absentNames = absentIds
+              .map((id) => studentNames[id] ?? 'طالب')
+              .toList();
+          final presentIds =
+              (att['presentStudentIds'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          presentNames = presentIds
+              .map((id) => studentNames[id] ?? 'طالب')
+              .toList();
+          presentCount = presentIds.length;
+          totalStudents = presentIds.length + absentIds.length;
+        }
+
+        return LessonDayReport(
+          recording: rec,
+          presentCount: presentCount,
+          totalStudents: totalStudents,
+          absentNames: absentNames,
+          presentNames: presentNames,
+          lessonTotalCount: lesson.totalCount,
+        );
+      }).toList();
+    });
+  }
+
+  /// بث تقرير المتن اليومي — يتحدث تلقائيًا عند إضافة/تعديل/حذف تسجيل
+  Stream<MutunReportData> watchMutunDailyReports(Matna matna) {
+    return _firestore
+        .collection('mutun_recordings')
+        .where('matnaId', isEqualTo: matna.id)
+        .snapshots()
+        .asyncMap((recordingsSnap) async {
+      final studentsSnap = await _firestore
+          .collection('students')
+          .where('teacherId', isEqualTo: matna.teacherId)
+          .get();
+
+      final studentNames = <String, String>{
+        for (final d in studentsSnap.docs)
+          if (d.data()['pathwayId'] == matna.pathwayId)
+            d.id: (d.data()['name'] as String?) ?? 'طالب',
+      };
+
+      final recordings = recordingsSnap.docs
+          .map((d) => MutunRecording.fromFirestore(d))
+          .where((r) => r.isOfficial)
+          .toList();
+
+      final byDay = <DateTime, List<MutunRecording>>{};
+      for (final r in recordings) {
+        byDay.putIfAbsent(_dayOnly(r.date), () => []).add(r);
+      }
+
+      final days = byDay.entries.map((entry) {
+        final recs = entry.value..sort((a, b) => a.from.compareTo(b.from));
+        return ActivityDayReport(
+          date: entry.key,
+          weekdayLabel: recs.first.weekday,
+          entries: recs
+              .map(
+                (r) => ActivityEntry(
+                  studentName: studentNames[r.studentId] ?? 'طالب',
+                  from: r.from,
+                  to: r.to,
+                  count: r.count,
+                  notes: r.notes,
+                  completesTotal:
+                      matna.totalCount > 0 && r.to >= matna.totalCount,
+                ),
+              )
+              .toList(),
+        );
+      }).toList()..sort((a, b) => a.date.compareTo(b.date));
+
+      double reached = 0;
+      for (final r in recordings) {
+        if (r.to > reached) reached = r.to;
+      }
+
+      return MutunReportData(matna: matna, days: days, reached: reached);
+    });
+  }
+
+  /// بث أيام غياب المعلم — يتحدث تلقائيًا
+  Stream<List<TeacherAbsence>> watchTeacherAbsenceDays({
+    required String teacherId,
+    required String pathwayId,
+    String? lessonId,
+  }) {
+    return _firestore
+        .collection('lesson_recordings')
+        .where('teacherId', isEqualTo: teacherId)
+        .snapshots()
+        .map((snapshot) {
+      final recordings = snapshot.docs
+          .map((d) => LessonRecording.fromFirestore(d))
+          .where((r) => r.pathwayId == pathwayId)
+          .where((r) => lessonId == null || r.lessonId == lessonId)
+          .toList();
+
+      if (recordings.isEmpty) return const <TeacherAbsence>[];
+
+      final patternWeekdays = recordings.map((r) => r.date.weekday).toSet();
+
+      recordings.sort((a, b) => a.date.compareTo(b.date));
+      final first = _dayOnly(recordings.first.date);
+      final yesterday = _dayOnly(
+        DateTime.now(),
+      ).subtract(const Duration(days: 1));
+
+      final recordedDays = recordings.map((r) => _dayOnly(r.date)).toSet();
+
+      final absences = <TeacherAbsence>[];
+      var cursor = first;
+      while (!cursor.isAfter(yesterday)) {
+        if (patternWeekdays.contains(cursor.weekday) &&
+            !recordedDays.contains(cursor)) {
+          absences.add(
+            TeacherAbsence(
+              date: cursor,
+              weekdayLabel: DateFormat('EEEE', 'ar').format(cursor),
+            ),
+          );
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+
+      return absences.reversed.toList();
+    });
+  }
+
   // ================= تقرير طالب واحد (المهمة 3) =================
 
   ///

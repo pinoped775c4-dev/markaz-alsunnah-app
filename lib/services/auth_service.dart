@@ -146,7 +146,7 @@ class AuthService extends ChangeNotifier {
       final tempResult = await _tryTempPasswordLogin(email.trim(), password);
       if (tempResult != null) return tempResult;
 
-      return AuthResult.failure(_mapAuthError(e));
+      return AuthResult.failure(mapFirebaseError(e));
     } catch (e) {
       debugPrint('AuthService.signIn error: $e');
       return const AuthResult.failure('حدث خطأ في الاتصال، تحقق من الإنترنت وحاول مرة أخرى');
@@ -162,7 +162,7 @@ class AuthService extends ChangeNotifier {
       String email, String password) async {
     try {
       // حساب hash لكلمة المرور المُدخلة
-      final inputHash = _hashPassword(password);
+      final inputHash = hashPassword(password);
 
       // استعلام واحد بسيط على البريد (لا فهارس مركبة)
       final snapshot = await _firestore
@@ -191,7 +191,7 @@ class AuthService extends ChangeNotifier {
       bool matched = false;
       if (storedHash != null && storedHash.isNotEmpty) {
         // المقارنة الآمنة: hash مع hash
-        matched = _secureCompare(storedHash, inputHash);
+        matched = secureCompare(storedHash, inputHash);
       } else if (storedPlain != null && storedPlain.isNotEmpty) {
         // توافق قديم: مقارنة مباشرة (قبل الترحيل)
         matched = storedPlain == password;
@@ -232,7 +232,8 @@ class AuthService extends ChangeNotifier {
   }
 
   /// حساب SHA-256 hash لكلمة المرور مع salt
-  static String _hashPassword(String password) {
+  @visibleForTesting
+  static String hashPassword(String password) {
     final salt = 'markaz_alsunnah_salt_v1';
     final bytes = utf8.encode('$salt:$password');
     final digest = sha256.convert(bytes);
@@ -240,7 +241,8 @@ class AuthService extends ChangeNotifier {
   }
 
   /// مقارنة آمنة لمنع timing attacks
-  static bool _secureCompare(String a, String b) {
+  @visibleForTesting
+  static bool secureCompare(String a, String b) {
     if (a.length != b.length) return false;
     int result = 0;
     for (int i = 0; i < a.length; i++) {
@@ -252,7 +254,7 @@ class AuthService extends ChangeNotifier {
   /// ترحيل كلمة المرور من النص الصريح إلى hash (تلقائي عند أول دخول ناجح)
   Future<void> _migratePasswordToHash(String uid, String plainPassword) async {
     try {
-      final hash = _hashPassword(plainPassword);
+      final hash = hashPassword(plainPassword);
       await _firestore.collection('users').doc(uid).update({
         'tempPasswordHash': hash,
         'tempPassword': FieldValue.delete(), // حذف النص الصريح
@@ -302,7 +304,7 @@ class AuthService extends ChangeNotifier {
       await _auth.sendPasswordResetEmail(email: email.trim());
       return null; // نجاح
     } on FirebaseAuthException catch (e) {
-      return _mapAuthError(e);
+      return mapFirebaseError(e);
     } catch (e) {
       return 'حدث خطأ في الاتصال، حاول مرة أخرى';
     }
@@ -344,7 +346,7 @@ class AuthService extends ChangeNotifier {
   }
 
   /// ترجمة أخطاء Firebase إلى رسائل عربية واضحة
-  String _mapAuthError(FirebaseAuthException e) {
+  static String mapFirebaseError(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-email':
         return 'صيغة البريد الإلكتروني غير صحيحة';

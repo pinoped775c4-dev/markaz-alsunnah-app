@@ -1,13 +1,11 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import '../models/app_user.dart';
+import 'auth_service.dart';
 import 'mutun_wird_service.dart';
 
 /// نتيجة عملية على المعلمين
@@ -79,7 +77,7 @@ class TeachersService {
 
       return const TeacherOpResult.ok();
     } on FirebaseAuthException catch (e) {
-      return TeacherOpResult.fail(_mapError(e));
+      return TeacherOpResult.fail(AuthService.mapFirebaseError(e));
     } on FirebaseException catch (e) {
       debugPrint('TeachersService.createTeacher Firestore error: $e');
       return const TeacherOpResult.fail(
@@ -251,7 +249,7 @@ class TeachersService {
     }
     try {
       // 🔒 تشفير كلمة المرور قبل التخزين
-      final passwordHash = _hashPassword(newPassword.trim());
+      final passwordHash = AuthService.hashPassword(newPassword.trim());
       await _firestore.collection('users').doc(uid).update({
         'tempPasswordHash': passwordHash,
         // حذف أي نص صريح قديم (ترحيل من الإصدار السابق)
@@ -267,32 +265,4 @@ class TeachersService {
     }
   }
 
-  /// حساب SHA-256 hash لكلمة المرور مع salt
-  static String _hashPassword(String password) {
-    final salt = 'markaz_alsunnah_salt_v1';
-    final bytes = utf8.encode('$salt:$password');
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
-
-  // ================= ترجمة الأخطاء =================
-
-  String _mapError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'email-already-in-use':
-        return 'هذا البريد الإلكتروني مستخدم بالفعل لحساب آخر';
-      case 'invalid-email':
-        return 'صيغة البريد الإلكتروني غير صحيحة';
-      case 'weak-password':
-        return 'كلمة المرور ضعيفة، يجب أن تكون 8 أحرف على الأقل';
-      case 'user-not-found':
-        return 'لا يوجد حساب مسجل بهذا البريد الإلكتروني';
-      case 'network-request-failed':
-        return 'لا يوجد اتصال بالإنترنت، تحقق من الشبكة';
-      case 'too-many-requests':
-        return 'محاولات كثيرة جداً، انتظر قليلاً ثم حاول مجدداً';
-      default:
-        return 'حدث خطأ غير متوقع، حاول مرة أخرى';
-    }
-  }
 }
