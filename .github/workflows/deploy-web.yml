@@ -1,0 +1,65 @@
+# 🌐 بناء نسخة الويب ونشرها على GitHub Pages
+#
+# ماذا يفعل هذا الملف؟
+# 1. يبني نسخة ويب من تطبيق Flutter تلقائياً على خوادم GitHub
+# 2. ينشرها على GitHub Pages — رابط مباشر يعمل في أي متصفح
+#
+# متى يعمل؟
+# - عند الدفع (push) للفرع الرئيسي main
+# - يدوياً من تبويب Actions في GitHub (Run workflow)
+
+name: 🌐 بناء ونشر نسخة الويب
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "arena/**"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: بناء نسخة الويب
+    runs-on: ubuntu-latest
+    steps:
+      - name: تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: تثبيت Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.4"
+          channel: stable
+          cache: true
+
+      - name: تحميل الحزم
+        run: flutter pub get
+
+      - name: بناء نسخة الويب
+        run: flutter build web --release --base-href "/markaz-alsunnah-app/"
+
+      - name: رفع ملفات الموقع
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: النشر على GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: النشر
+        id: deployment
+        uses: actions/deploy-pages@v4
