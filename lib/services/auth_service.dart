@@ -109,6 +109,8 @@ class AuthService extends ChangeNotifier {
     required String password,
   }) async {
     try {
+      // محاولة الدخول — عند فشل الشبكة المؤقت يوجد إعادة محاولة
+      // في كتلة الالتقاط أدناه (يحسّن التجربة على الشبكات الضعيفة)
       final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
@@ -160,11 +162,51 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return AuthResult.success(profile);
     } on FirebaseAuthException catch (e) {
+      // إعادة محاولة واحدة عند فشل شبكة مؤقت (خطأ شائع على شبكات الجوال)
+      if (e.code == 'network-request-failed') {
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        try {
+          final credential = await _auth.signInWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          );
+          final uid = credential.user?.uid;
+          if (uid != null) {
+            final profile = await _fetchProfile(uid);
+            if (profile == null) {
+              await _auth.signOut();
+              return const AuthResult.failure(
+                'لا يوجد حساب مرتبط بهذا البريد. الحسابات تُنشأ من قِبل الإدارة فقط.',
+              );
+            }
+            if (!profile.isActive) {
+              await _auth.signOut();
+              return const AuthResult.failure(
+                'هذا الحساب معطّل. تواصل مع إدارة المركز لتفعيله.',
+              );
+            }
+            _currentUser = profile;
+            notifyListeners();
+            return AuthResult.success(profile);
+          }
+        } catch (_) {
+          // فشلت إعادة المحاولة — نُكمل برسالة الخطأ الأصلية
+        }
+        return AuthResult.failure(mapFirebaseError(e));
+      }
+
       // سلسلة الدخول البديلة: كلمة مرور مؤقتة وضعها المدير
       // (تُخزن في ملف users لأن كلمة مرور Firebase Auth لا تعدَّل
       // إلا من صاحبها). نطابقها هنا ونبني جلسة من ملف Firestore.
-      final tempResult = await _tryTempPasswordLogin(email.trim(), password);
-      if (tempResult != null) return tempResult;
+      // نتجاهل المحاولة لأخطاء الشبكة/الحظر/صيغة البريد — لا تنفع
+      // معها وتضيف استعلامين إضافيين بلا فائدة (تأخير أطول).
+      if (e.code != 'network-request-failed' &&
+          e.code != 'too-many-requests' &&
+          e.code != 'invalid-email' &&
+          e.code != 'user-disabled') {
+        final tempResult = await _tryTempPasswordLogin(email.trim(), password);
+        if (tempResult != null) return tempResult;
+      }
 
       return AuthResult.failure(mapFirebaseError(e));
     } catch (e) {
