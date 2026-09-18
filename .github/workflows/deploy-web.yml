@@ -1,11 +1,12 @@
 # 🌐 بناء نسخة الويب ونشرها على GitHub Pages
 #
 # ماذا يفعل هذا الملف؟
-# 1. يبني نسخة ويب من تطبيق Flutter تلقائياً على خوادم GitHub
-# 2. ينشرها على GitHub Pages — رابط مباشر يعمل في أي متصفح
+# 1. يُفعّل خدمة GitHub Pages تلقائياً إن لم تكن مفعّلة
+# 2. يبني نسخة ويب من تطبيق Flutter تلقائياً على خوادم GitHub
+# 3. ينشرها على GitHub Pages — رابط مباشر يعمل في أي متصفح
 #
 # متى يعمل؟
-# - عند الدفع (push) للفرع الرئيسي main
+# - عند الدفع (push) للفرع الرئيسي main أو فروع العمل
 # - يدوياً من تبويب Actions في GitHub (Run workflow)
 
 name: 🌐 بناء ونشر نسخة الويب
@@ -33,6 +34,14 @@ jobs:
     steps:
       - name: تحميل الكود
         uses: actions/checkout@v4
+
+      - name: إعداد وتفعيل GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          # تفعيل الخدمة تلقائياً إن لم تكن مفعّلة
+          # (يحل خطأ 404 عند إنشاء deployment)
+          enablement: true
 
       - name: تثبيت Flutter
         uses: subosito/flutter-action@v2
