@@ -9,7 +9,7 @@ class AppConstants {
   /// البريد الإلكتروني للمدير المؤسس (Bootstrap)
   /// يُستخدم مرة واحدة فقط لإنشاء حساب المدير الأول.
   /// ⚠️ يجب تغييره إلى البريد الفعلي للمدير قبل النشر.
-  static const String bootstrapAdminEmail = 'admin@alsunnah-center.com';
+  static const String bootstrapAdminEmail = 'idarh@mrkaz.com';
 
   /// المسارات التعليمية الخمسة الثابتة
   static const List<PathwayInfo> pathways = [

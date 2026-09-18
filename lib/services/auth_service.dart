@@ -20,6 +20,13 @@ class AuthResult {
   bool get isSuccess => user != null;
 }
 
+/// نتيجة مفصّلة لجلب الملف الشخصي: نميّز "غير موجود" عن "خطأ"
+class _ProfileFetchResult {
+  final AppUser? profile;
+  final String? error;
+  const _ProfileFetchResult(this.profile, this.error);
+}
+
 /// خدمة المصادقة وإدارة الجلسات
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -113,13 +120,26 @@ class AuthService extends ChangeNotifier {
       }
 
       // جلب الملف الشخصي من Firestore
-      var profile = await _fetchProfile(uid);
+      // نحتاج تمييز: "الملف غير موجود" عن "خطأ صلاحيات/اتصال"
+      final profileResult = await _fetchProfileDetailed(uid);
+
+      if (profileResult.error != null) {
+        await _auth.signOut();
+        return AuthResult.failure(profileResult.error!);
+      }
+
+      var profile = profileResult.profile;
 
       // Bootstrap: إنشاء حساب المدير الأول لمرة واحدة فقط
       if (profile == null &&
           email.trim().toLowerCase() ==
               AppConstants.bootstrapAdminEmail.toLowerCase()) {
-        profile = await _bootstrapAdmin(uid, email.trim());
+        final bootstrap = await _bootstrapAdminDetailed(uid, email.trim());
+        if (bootstrap.error != null) {
+          await _auth.signOut();
+          return AuthResult.failure(bootstrap.error!);
+        }
+        profile = bootstrap.profile;
       }
 
       if (profile == null) {
@@ -232,7 +252,7 @@ class AuthService extends ChangeNotifier {
   }
 
   /// حساب SHA-256 hash لكلمة المرور مع salt
-  @visibleForTesting
+  /// عام: يُستخدم داخل AuthService و TeachersService (توليد hash عند إنشاء/تعيين كلمة مرور)
   static String hashPassword(String password) {
     final salt = 'markaz_alsunnah_salt_v1';
     final bytes = utf8.encode('$salt:$password');
@@ -266,8 +286,36 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// إنشاء حساب المدير الأول (Bootstrap لمرة واحدة)
-  Future<AppUser?> _bootstrapAdmin(String uid, String email) async {
+  /// جلب الملف الشخصي مع تفاصيل الخطأ (يُستخدم عند الدخول)
+  Future<_ProfileFetchResult> _fetchProfileDetailed(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (!doc.exists) return const _ProfileFetchResult(null, null);
+      return _ProfileFetchResult(AppUser.fromFirestore(doc), null);
+    } on FirebaseException catch (e) {
+      debugPrint('AuthService._fetchProfileDetailed error: \${e.code}: \${e.message}');
+      if (e.code == 'permission-denied') {
+        return const _ProfileFetchResult(
+          null,
+          'تم تسجيل الدخول لكن قواعد أمان Firestore تمنع قراءة ملفك. '
+          'انشر قواعد firestore.rules من: Firebase Console → Firestore → Rules → Publish',
+        );
+      }
+      return _ProfileFetchResult(
+        null,
+        'تعذّر الوصول إلى قاعدة البيانات (\${e.code}). تحقق من إنشاء Firestore Database في مشروع markaz-aloom',
+      );
+    } catch (e) {
+      debugPrint('AuthService._fetchProfileDetailed error: $e');
+      return const _ProfileFetchResult(
+        null,
+        'تعذّر الوصول إلى قاعدة البيانات. تحقق من الإنترنت ومن إنشاء Firestore Database',
+      );
+    }
+  }
+
+  /// إنشاء حساب المدير مع تفاصيل الخطأ (يُستخدم عند الدخول)
+  Future<_ProfileFetchResult> _bootstrapAdminDetailed(String uid, String email) async {
     try {
       final adminUser = AppUser(
         uid: uid,
@@ -279,14 +327,31 @@ class AuthService extends ChangeNotifier {
         createdAt: DateTime.now(),
       );
       await _firestore.collection('users').doc(uid).set(adminUser.toMap());
-      return adminUser;
+      return _ProfileFetchResult(adminUser, null);
+    } on FirebaseException catch (e) {
+      debugPrint('AuthService._bootstrapAdminDetailed error: \${e.code}: \${e.message}');
+      if (e.code == 'permission-denied') {
+        return const _ProfileFetchResult(
+          null,
+          'قواعد أمان Firestore تمنع إنشاء ملف المدير. الحل السريع: '
+          'من Firebase Console → Firestore → Rules انسخ محتوى firestore.rules واضغط Publish، '
+          'أو مؤقتًا اجعل القواعد: allow read, write: if request.auth != null;',
+        );
+      }
+      return _ProfileFetchResult(
+        null,
+        'فشل إنشاء ملف المدير في قاعدة البيانات (\${e.code}). تحقق من إنشاء Firestore Database في مشروع markaz-aloom',
+      );
     } catch (e) {
-      debugPrint('AuthService._bootstrapAdmin error: $e');
-      return null;
+      debugPrint('AuthService._bootstrapAdminDetailed error: $e');
+      return const _ProfileFetchResult(
+        null,
+        'فشل إنشاء ملف المدير في قاعدة البيانات. حاول مرة أخرى',
+      );
     }
   }
 
-  /// جلب الملف الشخصي من Firestore
+  /// جلب الملف الشخصي من Firestore (بدون تفاصيل خطأ — للجلسات القائمة)
   Future<AppUser?> _fetchProfile(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
@@ -365,8 +430,24 @@ class AuthService extends ChangeNotifier {
         return 'هذا البريد الإلكتروني مستخدم بالفعل';
       case 'weak-password':
         return 'كلمة المرور ضعيفة، يجب أن تكون 8 أحرف على الأقل';
+      case 'operation-not-allowed':
+        return 'تسجيل الدخول بالبريد وكلمة المرور غير مفعّل في Firebase. فعّله من: Firebase Console → Authentication → Sign-in method → Email/Password';
+      case 'invalid-api-key':
+        return 'مفتاح API غير صالح. تحقق من إعدادات Firebase (firebase_options.dart)';
+      case 'api-key-not-valid':
+        return 'مفتاح API غير صالح للمشروع. تحقق من إعدادات Firebase';
+      case 'unauthorized-domain':
+        return 'هذا النطاق غير مصرح له. أضفه من: Firebase Console → Authentication → Settings → Authorized domains';
+      case 'configuration-not-found':
+        return 'إعدادات Firebase غير مكتملة. تأكد من صحة firebase_options.dart و google-services.json';
+      case 'invalid-verification-code':
+      case 'invalid-verification-id':
+        return 'انتهت صلاحية الجلسة، أعد المحاولة';
+      case 'admin-restricted-operation':
+        return 'العملية ممنوعة من إعدادات المشروع';
       default:
-        return 'حدث خطأ غير متوقع، حاول مرة أخرى';
+        debugPrint('Unhandled FirebaseAuthException: code=${e.code}, msg=${e.message}');
+        return 'حدث خطأ غير متوقع (رمز الخطأ: ${e.code})، حاول مرة أخرى';
     }
   }
 }

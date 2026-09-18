@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- التنزيل من الإنترنت لتحديثات التطبيق -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="مركز السنة للعلوم الشرعية وتأهيل الدعاة"
         android:name="${applicationName}"

@@ -85,8 +85,28 @@ service cloud.firestore {
     // - حذف: المدير فقط
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      // المدير يُنشئ ملفات المستخدمين الآخرين (المعلمين)
-      allow create: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // الإنشاء:
+      // - المدير: يُنشئ ملفات المعلمين (بأي دور يحدده)
+      // - المستخدم لنفسه (Bootstrap المدير الأول فقط): دور admin مسموح
+      //   فقط إذا لم يوجد أي مدير آخر في النظام.
+      // - المستخدم لنفسه في الحالة العادية: دور teacher فقط (لا يمكنه ترقية نفسه)
+      allow create: if isSignedIn() && (
+          isAdmin()
+          || (
+              request.auth.uid == uid
+              && (
+                  // دور teacher فقط للمستخدم العادي
+                  request.resource.data.role == 'teacher'
+                  // أو دور admin لكن فقط إذا لم يوجد مدير في النظام (Bootstrap)
+                  || (
+                      request.resource.data.role == 'admin'
+                      && !exists(
+                          /databases/$(database)/documents/users/$(request.auth.uid)
+                      )
+                  )
+              )
+          )
+      );
       allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin())
           // منع المستخدم العادي من تغيير دوره (خصوصاً ترقية نفسه إلى مدير)
           && (isAdmin() || request.resource.data.role == resource.data.role);
@@ -94,27 +114,12 @@ service cloud.firestore {
     }
 
     // ==================== students ====================
-    // الطلاب:
-    // - القراءة: المدير + المعلم صاحب الطلاب فقط
-    // - الكتابة: المدير + المعلم صاحب الطلاب فقط
-    // - الحذف: المدير + المعلم صاحب الطلاب فقط
+    // الطلاب مشتركون بين جميع المعلمين — الإدارة وحدها تديرهم:
+    // - القراءة: المدير + أي معلم (الطلاب مشتركون في كل مستوى)
+    // - الإضافة/التعديل/الحذف: المدير فقط
     match /students/{doc} {
-      allow read: if isSignedIn() && (
-          isAdmin()
-          || (isTeacher() && resource.data.teacherId == request.auth.uid)
-      );
-      allow create: if isSignedIn() && (
-          isAdmin()
-          || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
-      );
-      allow update: if isSignedIn() && (
-          isAdmin()
-          || (isTeacher() && resource.data.teacherId == request.auth.uid)
-      );
-      allow delete: if isSignedIn() && (
-          isAdmin()
-          || (isTeacher() && resource.data.teacherId == request.auth.uid)
-      );
+      allow read: if isSignedIn() && (isAdmin() || isTeacher());
+      allow create, update, delete: if isAdmin();
     }
 
     // ==================== lessons ====================

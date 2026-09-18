@@ -301,17 +301,16 @@ class ReportsService {
           .collection('attendance')
           .where('lessonId', isEqualTo: lesson.id)
           .get(),
-      // استعلام بشرط واحد فقط (تجنّب الفهرس المركب) — الفلترة على pathwayId تتم محليًا
+      // الطلاب مشتركون — فلترة بشرط واحد (pathwayId)
       _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: lesson.teacherId)
+          .where('pathwayId', isEqualTo: lesson.pathwayId)
           .get(),
     ]);
 
     final studentNames = <String, String>{
       for (final d in results[2].docs)
-        if (d.data()['pathwayId'] == lesson.pathwayId)
-          d.id: (d.data()['name'] as String?) ?? 'طالب',
+        d.id: (d.data()['name'] as String?) ?? 'طالب',
     };
 
     // خريطة recordingId ← وثيقة الحضور
@@ -387,9 +386,9 @@ class ReportsService {
           .collection('quran_recordings')
           .where('teacherId', isEqualTo: teacherId)
           .get(),
+      // الطلاب مشتركون — نجلبهم كلهم دفعة واحدة (المجموعة صغيرة)
       _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: teacherId)
           .get(),
       _firestore
           .collection('mutun')
@@ -484,10 +483,10 @@ class ReportsService {
           .collection('mutun_recordings')
           .where('matnaId', isEqualTo: matna.id)
           .get(),
-      // استعلام بشرط واحد فقط (تجنّب الفهرس المركّب) — الفلترة محليًا
+      // الطلاب مشتركون — فلترة بشرط واحد (pathwayId)
       _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: matna.teacherId)
+          .where('pathwayId', isEqualTo: matna.pathwayId)
           .get(),
     ]);
 
@@ -547,9 +546,9 @@ class ReportsService {
           .collection('quran_recordings')
           .where('teacherId', isEqualTo: teacherId)
           .get(),
+      // الطلاب مشتركون — نجلبهم كلهم دفعة واحدة
       _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: teacherId)
           .get(),
     ]);
 
@@ -631,15 +630,15 @@ class ReportsService {
           .collection('attendance')
           .where('lessonId', isEqualTo: lesson.id)
           .get();
+      // الطلاب مشتركون — فلترة بشرط واحد (pathwayId)
       final studentsSnap = await _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: lesson.teacherId)
+          .where('pathwayId', isEqualTo: lesson.pathwayId)
           .get();
 
       final studentNames = <String, String>{
         for (final d in studentsSnap.docs)
-          if (d.data()['pathwayId'] == lesson.pathwayId)
-            d.id: (d.data()['name'] as String?) ?? 'طالب',
+          d.id: (d.data()['name'] as String?) ?? 'طالب',
       };
 
       final attendanceByRecording = <String, Map<String, dynamic>>{};
@@ -702,15 +701,15 @@ class ReportsService {
         .where('matnaId', isEqualTo: matna.id)
         .snapshots()
         .asyncMap((recordingsSnap) async {
+      // الطلاب مشتركون — فلترة بشرط واحد (pathwayId)
       final studentsSnap = await _firestore
           .collection('students')
-          .where('teacherId', isEqualTo: matna.teacherId)
+          .where('pathwayId', isEqualTo: matna.pathwayId)
           .get();
 
       final studentNames = <String, String>{
         for (final d in studentsSnap.docs)
-          if (d.data()['pathwayId'] == matna.pathwayId)
-            d.id: (d.data()['name'] as String?) ?? 'طالب',
+          d.id: (d.data()['name'] as String?) ?? 'طالب',
       };
 
       final recordings = recordingsSnap.docs

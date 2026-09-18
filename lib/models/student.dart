@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// نموذج بيانات الطالب (لا حسابات للطلاب — يديرهم المعلم)
+/// نموذج بيانات الطالب (لا حسابات للطلاب — تديرهم الإدارة فقط)
+///
+/// الطلاب مشتركون بين جميع المعلمين: الإدارة تضيفهم وتحدد مستواهم،
+/// وكل معلم يرى طلاب مساره ويعمل معهم (حضور، تسميع، أوراد).
+/// teacherId حقل مُخلَّد للتوافق مع البيانات القديمة فقط — لم يعد
+/// يُستخدم لتقسيم الطلاب بين المعلمين.
 class Student {
   final String id;
-  final String teacherId;
+  final String? teacherId;
   final String pathwayId;
   final String pathwayName;
   final String name;
@@ -16,7 +21,7 @@ class Student {
 
   const Student({
     required this.id,
-    required this.teacherId,
+    this.teacherId,
     required this.pathwayId,
     required this.pathwayName,
     required this.name,
@@ -34,7 +39,7 @@ class Student {
     final data = doc.data() ?? {};
     return Student(
       id: doc.id,
-      teacherId: (data['teacherId'] as String?) ?? '',
+      teacherId: data['teacherId'] as String?,
       pathwayId: (data['pathwayId'] as String?) ?? '',
       pathwayName: (data['pathwayName'] as String?) ?? '',
       name: (data['name'] as String?) ?? '',
@@ -49,6 +54,7 @@ class Student {
 
   Map<String, dynamic> toMap() {
     return {
+      // حقل تاريخي — لم يعد يُستخدم لتقسيم الطلاب (الطلاب مشتركون)
       'teacherId': teacherId,
       'pathwayId': pathwayId,
       'pathwayName': pathwayName,

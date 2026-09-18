@@ -2691,6 +2691,7 @@ class StudentMatnaReportScreen extends StatefulWidget {
 
 class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
   List<QuranRecording>? _quranRecordings;
+  StreamSubscription<List<QuranRecording>>? _quranSub;
 
   @override
   void initState() {
@@ -2701,7 +2702,7 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
 
   void _loadQuran() {
     // التقارير الرسمية: الأوراد الرسمية فقط
-    widget.quranService
+    _quranSub = widget.quranService
         .watchStudentRecordings(
           studentId: widget.student.id,
           officialOnly: true,
@@ -2715,6 +2716,13 @@ class _StudentMatnaReportScreenState extends State<StudentMatnaReportScreen> {
             if (mounted) setState(() => _quranRecordings = []);
           },
         );
+  }
+
+  @override
+  void dispose() {
+    // إلغاء الاشتراك لمنع تسريب الاتصال بـ Firestore بعد مغادرة الشاشة
+    _quranSub?.cancel();
+    super.dispose();
   }
 
   @override

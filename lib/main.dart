@@ -185,11 +185,12 @@ class _AppRouterState extends State<AppRouter> {
     });
   }
 
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
 
-    // السبلاش يبقى حتى: (اكتمال فحص الجلسة) + (مرور 3 ثوانٍ)
+    // السبلاش يبقى حتى: (اكتمال فحص الجلسة) + (مرور الحد الأدنى)
     final showSplash = !_minSplashElapsed || !auth.isInitialized;
 
     return AnimatedSwitcher(
