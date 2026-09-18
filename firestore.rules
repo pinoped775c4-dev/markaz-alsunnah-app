@@ -85,11 +85,11 @@ service cloud.firestore {
     // - حذف: المدير فقط
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      // المدير يُنشئ ملفات المستخدمين الآخرين (المعلمين)
+      allow create: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow update: if isSignedIn() && (request.auth.uid == uid || isAdmin())
-          // منع المستخدم العادي من ترقية نفسه إلى مدير
-          && (isAdmin() || !request.resource.data.role != 'admin'
-              || request.resource.data.role == resource.data.role);
+          // منع المستخدم العادي من تغيير دوره (خصوصاً ترقية نفسه إلى مدير)
+          && (isAdmin() || request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }
 
