@@ -1,0 +1,61 @@
+# 🔬 تشخيصي مؤقت — يُحذف بعد الانتهاء
+# يبني المشروع ويرسل مخرجات البناء/التحليل إلى مشكلة (issue) لقراءتها
+# لأن تنزيل سجلات Actions غير متاح حالياً من بيئة العمل.
+name: diagnostics
+on:
+  push:
+    branches:
+      - "arena/01a0b492-markaz-alsunnah-app"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diagnose:
+    name: تشخيص البناء
+    runs-on: ubuntu-latest
+    steps:
+      - name: تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: تثبيت Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.4"
+          channel: stable
+          cache: true
+
+      - name: تحميل الحزم
+        run: flutter pub get
+
+      - name: التحليل + البناء
+        run: |
+          flutter analyze --no-pub > analyze.log 2>&1 || true
+          flutter build web --release --base-href "/markaz-alsunnah-app/" > build.log 2>&1 || true
+          echo "logs captured"
+
+      - name: نشر المخرجات في مشكلة
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "## flutter analyze"
+            echo '```'
+            tail -n 400 analyze.log
+            echo '```'
+            echo
+            echo "## flutter build web (آخر 400 سطر)"
+            echo '```'
+            tail -n 400 build.log
+            echo '```'
+          } > report.md
+          # إنشاء مشكلة أو التعليق على الأخيرة المفتوحة منها
+          ISSUE=$(gh issue list --label diag --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --body-file report.md
+          else
+            gh issue create --title "Diagnostics: build logs" --label diag --body-file report.md
+          fi
+          echo "reported to issue: ${ISSUE:-created}"
