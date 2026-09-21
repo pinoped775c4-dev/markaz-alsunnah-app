@@ -27,16 +27,22 @@ class _MutunTabState extends State<MutunTab>
   final StudentsService _studentsService = StudentsService();
   final MutunWirdService _wirdService = MutunWirdService();
 
-  /// هل المعلم الحالي هو معلم المتون والأوراد المخصص من الإدارة؟
-  /// (null = جارٍ التحقق من الإعداد)
-  bool? _isDesignated;
+  /// صلاحية الإدارة في هذا التبويب:
+  /// صاحب الحساب هو المعلم المخصص، أو المتصل هو المشرف (المعلم المخصص)
+  /// أثناء دخوله في حساب معلم آخر. (null = جارٍ التحقق)
+  bool? _canManage;
 
   @override
   void initState() {
     super.initState();
-    _wirdService.isDesignated(widget.teacherId).then((v) {
-      if (mounted) setState(() => _isDesignated = v);
-    });
+    _loadManagePermission();
+  }
+
+  Future<void> _loadManagePermission() async {
+    final ownerIs = await _wirdService.isDesignated(widget.teacherId);
+    final sessionIs =
+        ownerIs ? true : await _wirdService.isCurrentSessionDesignated();
+    if (mounted) setState(() => _canManage = ownerIs || sessionIs);
   }
 
   @override
@@ -47,7 +53,7 @@ class _MutunTabState extends State<MutunTab>
     super.build(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: _isDesignated == true
+      floatingActionButton: _canManage == true
           ? FloatingActionButton.extended(
               heroTag: 'add_matna_${widget.pathway.id}',
               onPressed: () => _showAddMatnaDialog(context),
@@ -79,11 +85,11 @@ class _MutunTabState extends State<MutunTab>
             return EmptyState(
               icon: Icons.auto_stories_rounded,
               title: 'لا توجد متون بعد',
-              message: _isDesignated == true
+              message: _canManage == true
                   ? 'أضف متون هذا المسار لتتابع حفظ طلابك فيها\nمثال: متن الآجرومية، تحفة الأطفال...'
                   : 'السجلات الرسمية يُنشئها معلم المتون والأوراد\nالمخصص من الإدارة',
-              actionLabel: _isDesignated == true ? 'إضافة أول متن' : null,
-              onAction: _isDesignated == true
+              actionLabel: _canManage == true ? 'إضافة أول متن' : null,
+              onAction: _canManage == true
                   ? () => _showAddMatnaDialog(context)
                   : null,
             );
@@ -556,9 +562,12 @@ class MatnaDetailScreen extends StatelessWidget {
     required this.studentsService,
   });
 
-  /// هل معلم هذا المتن هو معلم المتون والأوراد المخصص؟
-  Future<bool> _isDesignated() async {
-    return MutunWirdService().isDesignated(matna.teacherId);
+  /// هل يمكن تسجيل الحفظ في هذا المتن؟
+  /// المخصص صاحب الحساب، أو المشرف أثناء دخوله في حساب معلم آخر.
+  Future<bool> _canManage() async {
+    final ownerIs = await MutunWirdService().isDesignated(matna.teacherId);
+    if (ownerIs) return true;
+    return MutunWirdService().isCurrentSessionDesignated();
   }
 
   @override
@@ -580,9 +589,9 @@ class MatnaDetailScreen extends StatelessWidget {
         ),
       ),
       body: FutureBuilder<bool>(
-        future: _isDesignated(),
-        builder: (context, designatedSnap) {
-          final isDesignated = designatedSnap.data ?? false;
+        future: _canManage(),
+        builder: (context, canManageSnap) {
+          final isDesignated = canManageSnap.data ?? false;
           return StreamBuilder<List<Student>>(
             stream: studentsService.watchPathwayStudents(
               teacherId: matna.teacherId,

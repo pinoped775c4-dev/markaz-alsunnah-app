@@ -4,15 +4,25 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
+import '../../services/mutun_wird_service.dart';
 import '../../services/students_service.dart';
+import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/pathway_circle_item.dart';
 import '../account/account_screen.dart';
 import 'pathway_detail_screen.dart';
+import 'students_section_screen.dart';
+import 'teachers_section_screen.dart';
 
 /// لوحة المعلم: شعار بالأعلى + اسم الشيخ + صورة شخصية + زر إعدادات
-/// + 4 أيقونات دائرية للمستويات (بدون البطاقة الذهبية)
+/// + 4 أيقونات دائرية للمستويات (بدون البطاقة الذهبية).
+///
+/// حساب المشرف (معلم المتون والأوراد المخصص من الإدارة) يختلف:
+/// يعرض قسمين دائريتين — "المعلمون" للدخول في حساب أي معلم،
+/// و"الطلاب" للمتابعة المعتادة عبر المستويات.
 class TeacherHomeScreen extends StatelessWidget {
   const TeacherHomeScreen({super.key});
 
@@ -30,150 +40,237 @@ class TeacherHomeScreen extends StatelessWidget {
 
     return Scaffold(
       body: WatermarkedBackground(
-        child: StreamBuilder<Map<String, int>>(
-          stream: service.watchStudentCounts(user.uid),
-          builder: (context, snapshot) {
-            final counts = snapshot.data ?? {};
+        // مراقبة تعيين "معلم المتون والأوراد" — إن كان المتصل هو المخصص
+        // فيُعامل كمشرف ويعرض القسمين.
+        // (المعلم العادي لا يملك صلاحية قراءة الإعداد فيظهر له الخطأ
+        // ويُبقى على العرض المعتاد دون أي تأثير.)
+        child: StreamBuilder<MutunWirdDesignation>(
+          stream: MutunWirdService().watchDesignation(),
+          builder: (context, designationSnap) {
+            final designation = designationSnap.data;
+            final isSupervisor = designation != null &&
+                designation.hasDesignatedTeacher &&
+                designation.teacherUid == user.uid;
 
-            return RefreshIndicator(
-              color: AppColors.primary,
-              onRefresh: () async {},
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // ===== الشريط العلوي: صورة الشيخ + اسمه + إعدادات =====
-                  SliverToBoxAdapter(
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                        child: Row(
-                          children: [
-                            ProfileAvatar(
-                              photoBase64: user.photoBase64,
-                              name: user.name,
-                              size: 48,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'الشيخ ${user.name}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontSize: 15.5),
+            return StreamBuilder<Map<String, int>>(
+              stream: service.watchStudentCounts(user.uid),
+              builder: (context, snapshot) {
+                final counts = snapshot.data ?? {};
+                final totalStudents =
+                    counts.values.fold<int>(0, (a, b) => a + b);
+
+                return RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () async {},
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      // ===== الشريط العلوي: صورة الشيخ + اسمه + إعدادات =====
+                      SliverToBoxAdapter(
+                        child: SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                            child: Row(
+                              children: [
+                                ProfileAvatar(
+                                  photoBase64: user.photoBase64,
+                                  name: user.name,
+                                  size: 48,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'الشيخ ${user.name}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(fontSize: 15.5),
+                                      ),
+                                      Text(
+                                        isSupervisor
+                                            ? 'مشرف المتون والأوراد • $todayText'
+                                            : todayText,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(fontSize: 11.5),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    todayText,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(fontSize: 11.5),
+                                ),
+                                IconButton(
+                                  tooltip: 'الإعدادات',
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: AppColors.surface,
+                                    side: const BorderSide(
+                                        color: AppColors.lineSoft),
                                   ),
-                                ],
-                              ),
+                                  icon: const Icon(
+                                      Icons.settings_outlined,
+                                      color: AppColors.primary,
+                                      size: 21),
+                                  onPressed: () =>
+                                      showSettingsSheet(context),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              tooltip: 'الإعدادات',
-                              style: IconButton.styleFrom(
-                                backgroundColor: AppColors.surface,
-                                side: const BorderSide(
-                                    color: AppColors.lineSoft),
-                              ),
-                              icon: const Icon(
-                                  Icons.settings_outlined,
-                                  color: AppColors.primary,
-                                  size: 21),
-                              onPressed: () =>
-                                  showSettingsSheet(context),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
 
-                  // ===== شعار المركز في الأعلى =====
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.only(top: 20),
-                      child: Center(child: CircularLogo(size: 108)),
-                    ),
-                  ),
-
-                  // ===== اسم المركز =====
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                      child: Column(
-                        children: [
-                          Text(
-                            AppConstants.centerName,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: AppColors.primaryDark,
-                                  height: 1.4,
-                                ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            AppConstants.centerLocation,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.gold),
-                          ),
-                        ],
+                      // ===== شعار المركز في الأعلى =====
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 20),
+                          child: Center(child: CircularLogo(size: 108)),
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // ===== عنوان القسم =====
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(16, 22, 16, 0),
-                      child: SectionHeader(
-                        title: 'المستويات التعليمية',
-                        subtitle:
-                            'اختر مستواك لإدارة طلابك ودروسك',
+                      // ===== اسم المركز =====
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                          child: Column(
+                            children: [
+                              Text(
+                                AppConstants.centerName,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: AppColors.primaryDark,
+                                      height: 1.4,
+                                    ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                AppConstants.centerLocation,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.gold),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // ===== أيقونات المستويات: 4 أيقونات في صف واحد =====
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final pathway in circlePathways)
-                            _CircularPathwayItem(
-                              pathway: pathway,
-                              studentCount: counts[pathway.id] ?? 0,
-                              onTap: () =>
-                                  _openPathway(context, pathway),
+                      // ====== حساب المشرف: قسمان (المعلمون + الطلاب) ======
+                      if (isSupervisor) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 22, 16, 0),
+                            child: SectionHeader(
+                              title: 'الأقسام',
+                              subtitle:
+                                  'ادخل في حساب أي معلم، أو تابع طلاب المستويات',
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: CircleSectionItem(
+                                    imageAsset:
+                                        AppConstants.teachersSectionAsset,
+                                    label: 'المعلمون',
+                                    badge: const _TeachersCountBadge(),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const TeachersSectionScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: CircleSectionItem(
+                                    imageAsset:
+                                        AppConstants.studentsSectionAsset,
+                                    label: 'الطلاب',
+                                    badge: CountBadge(
+                                      text:
+                                          studentsCountLabel(totalStudents),
+                                      active: totalStudents > 0,
+                                    ),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const StudentsSectionScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        // ====== حساب المعلم المعتاد: 4 مستويات ======
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 22, 16, 0),
+                            child: SectionHeader(
+                              title: 'المستويات التعليمية',
+                              subtitle: 'اختر مستواك لإدارة طلابك ودروسك',
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final pathway in circlePathways)
+                                  CircleSectionItem(
+                                    imageAsset: AppConstants
+                                        .pathwayImageAsset(pathway.id),
+                                    label: pathway.name,
+                                    isGold: pathway.id == 'quran',
+                                    fallbackIcon: pathway.id == 'quran'
+                                        ? Icons.menu_book_rounded
+                                        : Icons.school_rounded,
+                                    badge: CountBadge(
+                                      text:
+                                          studentsCountLabel(
+                                              counts[pathway.id] ?? 0),
+                                      active: (counts[pathway.id] ?? 0) > 0,
+                                      gold: pathway.id == 'quran',
+                                    ),
+                                    onTap: () =>
+                                        _openPathway(context, pathway),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
 
-                  const SliverToBoxAdapter(
-                      child: SizedBox(height: 28)),
-                ],
-              ),
+                      const SliverToBoxAdapter(
+                          child: SizedBox(height: 28)),
+                    ],
+                  ),
+                );
+              },
             );
           },
         ),
@@ -191,116 +288,22 @@ class TeacherHomeScreen extends StatelessWidget {
   }
 }
 
-// ==================== عنصر المسار الدائري بالصورة ====================
-
-class _CircularPathwayItem extends StatelessWidget {
-  final PathwayInfo pathway;
-  final int studentCount;
-  final VoidCallback onTap;
-
-  const _CircularPathwayItem({
-    required this.pathway,
-    required this.studentCount,
-    required this.onTap,
-  });
+/// شارة عدد المعلمين — بث مباشر من قاعدة البيانات (لكل المعلمين المسجلين)
+class _TeachersCountBadge extends StatelessWidget {
+  const _TeachersCountBadge();
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final imageAsset = AppConstants.pathwayImageAsset(pathway.id);
-    final isQuran = pathway.id == 'quran';
-    final accent = isQuran ? AppColors.gold : AppColors.primary;
-
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            children: [
-              // الدائرة بالصورة المدموجة
-              Container(
-                width: 84,
-                height: 84,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isQuran
-                        ? AppColors.gold
-                        : AppColors.goldSoft,
-                    width: 2.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.15),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: imageAsset != null
-                      ? Image.asset(
-                          imageAsset,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _fallbackIcon(isQuran),
-                        )
-                      : _fallbackIcon(isQuran),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // اسم المستوى
-              Text(
-                pathway.name,
-                textAlign: TextAlign.center,
-                style: textTheme.titleSmall
-                    ?.copyWith(fontSize: 12.5, height: 1.25),
-              ),
-              const SizedBox(height: 4),
-
-              // عدد الطلاب (بصيغة الجمع الصحيحة)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: studentCount > 0
-                      ? (isQuran
-                          ? AppColors.goldSurface
-                          : AppColors.primarySurface)
-                      : AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  studentsCountLabel(studentCount),
-                  style: TextStyle(
-                    color: studentCount > 0
-                        ? (isQuran
-                            ? AppColors.goldDark
-                            : AppColors.primaryDark)
-                        : AppColors.inkMuted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _fallbackIcon(bool isQuran) {
-    return Container(
-      color: isQuran ? AppColors.goldSurface : AppColors.primarySurface,
-      child: Icon(
-        isQuran ? Icons.menu_book_rounded : Icons.school_rounded,
-        color: isQuran ? AppColors.goldDark : AppColors.primary,
-        size: 32,
-      ),
+    return StreamBuilder<List<AppUser>>(
+      stream: TeachersService().watchTeachers(),
+      builder: (context, snapshot) {
+        final hasData = snapshot.hasData;
+        final count = snapshot.data?.length ?? 0;
+        return CountBadge(
+          text: hasData ? AppConstants.teachersCountText(count) : '...',
+          active: hasData && count > 0,
+        );
+      },
     );
   }
 }

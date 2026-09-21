@@ -10,7 +10,11 @@ rules_version = '2';
 // - المدير (admin): صلاحية كاملة على كل البيانات.
 // - المعلم (teacher): يقرأ ويكتب بياناته الخاصة فقط (طلابه، دروسه،
 //   تسجيلاته). لا يصل لبيانات معلم آخر ولا يحذفها.
-// - معلم المتون والأوراد المخصص: يضيف سجلات رسمية (isOfficial=true).
+// - معلم المتون والأوراد المخصص (المشرف):
+//   * يضيف سجلات رسمية (isOfficial=true).
+//   * يدخل في حساب أي معلم: يقرأ كل بياناته (ملفه، دروسه، تسجيلاته،
+//     متونه، أوراده) ويكتب فيها بحساب ذلك المعلم (teacherId) لإدارة
+//     بياناته — هذه صلاحية "المشرف على حسابات المعلمين".
 // - أي مستخدم مسجل: يقرأ ملفه الشخصي فقط.
 // =====================================================================
 
@@ -84,7 +88,9 @@ service cloud.firestore {
     // - تعديل أي ملف: المدير فقط
     // - حذف: المدير فقط
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // يقرأ المشرف ملفات المعلمين لعرضهم في قسم "المعلمون" والدخول في حساباتهم
+      allow read: if isSignedIn()
+          && (request.auth.uid == uid || isAdmin() || isDesignatedWirdTeacher());
       // الإنشاء:
       // - المدير: يُنشئ ملفات المعلمين (بأي دور يحدده)
       // - المستخدم لنفسه (Bootstrap المدير الأول فقط): دور admin مسموح
@@ -128,21 +134,26 @@ service cloud.firestore {
     // - الكتابة: المدير + المعلم صاحب الدرس
     // - الحذف: المدير + المعلم صاحب الدرس
     match /lessons/{doc} {
+      // إضافة المشرف (معلم المتون والأوراد المخصص): يصل لبيانات كل المعلمين
       allow read: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow create: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow update: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow delete: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
     }
 
@@ -155,18 +166,22 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow create: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow update: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow delete: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
     }
 
@@ -179,14 +194,17 @@ service cloud.firestore {
       allow create: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && request.resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow update: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
       allow delete: if isSignedIn() && (
           isAdmin()
           || (isTeacher() && resource.data.teacherId == request.auth.uid)
+          || isDesignatedWirdTeacher()
       );
     }
 
@@ -206,6 +224,7 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || request.resource.data.teacherId == request.auth.uid
           );
       allow update: if isSignedIn()
@@ -215,11 +234,13 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || resource.data.teacherId == request.auth.uid
           );
+      // الحذف: المدير، أو المشرف (في حسابات المعلمين)، أو صاحب السجل نفسه
       allow delete: if isSignedIn() && (
           isAdmin()
-          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || isDesignatedWirdTeacher()
           || resource.data.teacherId == request.auth.uid
       );
     }
@@ -247,6 +268,7 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || request.resource.data.teacherId == request.auth.uid
           );
       allow update: if isSignedIn()
@@ -256,11 +278,12 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || resource.data.teacherId == request.auth.uid
           );
       allow delete: if isSignedIn() && (
           isAdmin()
-          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || isDesignatedWirdTeacher()
           || resource.data.teacherId == request.auth.uid
       );
     }
@@ -284,6 +307,7 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || request.resource.data.teacherId == request.auth.uid
           );
       allow update: if isSignedIn()
@@ -293,11 +317,12 @@ service cloud.firestore {
           )
           && (
               isAdmin()
+              || isDesignatedWirdTeacher()
               || resource.data.teacherId == request.auth.uid
           );
       allow delete: if isSignedIn() && (
           isAdmin()
-          || (isDesignatedWirdTeacher() && resource.data.isOfficial == true)
+          || isDesignatedWirdTeacher()
           || resource.data.teacherId == request.auth.uid
       );
     }

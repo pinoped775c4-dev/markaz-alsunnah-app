@@ -12,15 +12,32 @@ import 'quran_tab.dart';
 
 /// شاشة تفاصيل المسار الفاخرة: 3 تبويبات (الدروس | المتون | القرآن)
 /// تبويب الطلاب حُذف — الطلاب مشتركون تديرهم الإدارة فقط
+///
+/// عند فتحها من حساب المشرف (قسم المعلمين) يمرر المشرف [teacherId]
+/// صاحب الحساب المعروض، فيظهر كل ما في حساب ذلك المعلم ويمكنه
+/// الإضافة والتسجيل فيه بصفته المشرف.
 class PathwayDetailScreen extends StatelessWidget {
   final PathwayInfo pathway;
 
-  const PathwayDetailScreen({super.key, required this.pathway});
+  /// معرّف صاحب الحساب المعروض — null = حساب المستخدم الحالي (الوضع المعتاد)
+  final String? teacherId;
+
+  /// اسم المعلم المعروض (يظهر في الشريط العلوي عند عرض حساب معلم آخر)
+  final String? viewingTeacherName;
+
+  const PathwayDetailScreen({
+    super.key,
+    required this.pathway,
+    this.teacherId,
+    this.viewingTeacherName,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final teacherId =
-        context.watch<AuthService>().currentUser?.uid ?? '';
+    final currentUid = context.watch<AuthService>().currentUser?.uid ?? '';
+    final teacherId = (this.teacherId != null && this.teacherId!.isNotEmpty)
+        ? this.teacherId!
+        : currentUid;
     final isQuran = pathway.id == 'quran';
     final accent = isQuran ? AppColors.gold : AppColors.primary;
     final imageAsset = AppConstants.pathwayImageAsset(pathway.id);
@@ -104,22 +121,44 @@ class PathwayDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(pathway.name,
-                        style: const TextStyle(fontSize: 17)),
-                    Text(
-                      pathway.description,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.inkSecondary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(pathway.name,
+                          style: const TextStyle(fontSize: 17)),
+                      Text(
+                        pathway.description,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.inkSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                      // عند عرض حساب معلم آخر من قبل المشرف
+                      if (viewingTeacherName != null) ...[
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.goldSurface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppColors.goldSoft),
+                          ),
+                          child: Text(
+                            'حساب المعلم: $viewingTeacherName',
+                            style: const TextStyle(
+                              color: AppColors.goldDark,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           bottom: PreferredSize(
