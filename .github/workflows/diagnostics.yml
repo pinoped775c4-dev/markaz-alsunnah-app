@@ -52,10 +52,10 @@ jobs:
             echo '```'
           } > report.md
           # إنشاء مشكلة أو التعليق على الأخيرة المفتوحة منها
-          ISSUE=$(gh issue list --label diag --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          ISSUE=$(gh issue list --state open --search "Diagnostics: build logs in:title" --json number --jq '.[0].number' 2>/dev/null || true)
           if [ -n "$ISSUE" ]; then
             gh issue comment "$ISSUE" --body-file report.md
           else
-            gh issue create --title "Diagnostics: build logs" --label diag --body-file report.md
+            gh issue create --title "Diagnostics: build logs" --body-file report.md
           fi
           echo "reported to issue: ${ISSUE:-created}"
