@@ -47,6 +47,7 @@ class TeacherAccountScreen extends StatelessWidget {
                             flipX: true,
                             child: IconButton(
                               tooltip: 'رجوع',
+                              onPressed: () => Navigator.pop(context),
                               style: IconButton.styleFrom(
                                 backgroundColor: AppColors.surface,
                                 side: const BorderSide(
