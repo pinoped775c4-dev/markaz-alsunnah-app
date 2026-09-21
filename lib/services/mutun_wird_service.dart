@@ -234,20 +234,32 @@ class MutunWirdService {
 
   // ================= فحوصات الصلاحية المشتركة =================
 
-  /// تحقق صلاحية إنشاء سجل رسمي (متن/تسجيل تسميع/تقدم/ورد قرآني):
-  /// (أ) [teacherId] يجب أن يكون UID المعلم المسؤول المخصص من الإدارة،
-  /// (ب) [teacherId] يجب أن يكون UID المستخدم الحالي المسجَّل
-  ///     (منع انتحال هوية معلم آخر).
+  /// صلاحية إنشاء سجل رسمي (متن/تسجيل تسميع/تقدم/ورد قرآني):
+  /// المتصل يجب أن يكون هو المعلم المسؤول المخصص من الإدارة حالياً.
+  ///
+  /// [teacherId] هو صاحب الحساب الذي يعمل فيه المتصل — إما حساب
+  /// المشرف نفسه أو حساب معلم يدخل فيه المشرف لإدارة بياناته
+  /// (صلاحية المشرف على حسابات المعلمين) — والقواعد الخادمية
+  /// (Firestore Rules) تطابق هذا المنطق حصراً.
   Future<bool> canCreateOfficial(String teacherId) async {
+    if (teacherId.isEmpty) return false;
+    return isCurrentSessionDesignated();
+  }
+
+  /// هل المتصل حالياً هو معلم المتون والأوراد المخصص من الإدارة؟
+  ///
+  /// يُستخدم في الواجهات لإظهار أدوات الإدارة للمشرف حتى وهو
+  /// داخل حساب معلم آخر (إضافة متن/تسجيل تسميع/تسجيل ورد)،
+  /// وفي [canCreateOfficial] للتحقق الفعلي قبل إنشاء سجل رسمي.
+  Future<bool> isCurrentSessionDesignated() async {
     try {
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       if (currentUid == null || currentUid.isEmpty) return false;
-      if (teacherId != currentUid) return false; // منع انتحال الهوية
 
       final designatedUid = await getDesignatedTeacherUid();
-      return designatedUid != null && designatedUid == teacherId;
+      return designatedUid != null && designatedUid == currentUid;
     } catch (e) {
-      debugPrint('MutunWirdService.canCreateOfficial error: $e');
+      debugPrint('MutunWirdService.isCurrentSessionDesignated error: $e');
       return false;
     }
   }

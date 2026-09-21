@@ -86,6 +86,22 @@ class AppConstants {
         return null;
     }
   }
+
+  /// صورة قسم "المعلمون" في حساب المشرف (المعلم المخصص للمتون والأوراد)
+  static const String teachersSectionAsset = 'assets/sections/teachers.png';
+
+  /// صورة قسم "الطلاب" في حساب المشرف
+  static const String studentsSectionAsset = 'assets/sections/students.png';
+
+  /// صيغة جمع كلمة "معلم" حسب العدد (قواعد الجمع العربية)
+  /// 0 = لا يوجد معلمون | 1 = معلم واحد | 2 = معلمان | 3-10 = معلمين | 11+ = معلماً
+  static String teachersCountText(int count) {
+    if (count <= 0) return 'لا يوجد معلمون';
+    if (count == 1) return 'معلم واحد';
+    if (count == 2) return 'معلمان';
+    if (count >= 3 && count <= 10) return '$count معلمين';
+    return '$count معلماً';
+  }
 }
 
 class PathwayInfo {

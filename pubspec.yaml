@@ -45,6 +45,7 @@ flutter:
   assets:
     - assets/images/
     - assets/pathways/
+    - assets/sections/
     - assets/fonts/
 
   fonts:

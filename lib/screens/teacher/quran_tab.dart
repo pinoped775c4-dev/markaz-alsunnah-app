@@ -27,8 +27,10 @@ class _QuranTabState extends State<QuranTab>
   final StudentsService _studentsService = StudentsService();
   final MutunWirdService _wirdService = MutunWirdService();
 
-  /// هل المعلم الحالي هو معلم المتون والأوراد المخصص من الإدارة؟
-  bool? _isDesignated;
+  /// صلاحية الإدارة في هذا التبويب:
+  /// صاحب الحساب هو المعلم المخصص، أو المتصل هو المشرف (المعلم المخصص)
+  /// أثناء دخوله في حساب معلم آخر. (null = جارٍ التحقق)
+  bool? _canManage;
 
   @override
   bool get wantKeepAlive => true;
@@ -36,9 +38,14 @@ class _QuranTabState extends State<QuranTab>
   @override
   void initState() {
     super.initState();
-    _wirdService.isDesignated(widget.teacherId).then((v) {
-      if (mounted) setState(() => _isDesignated = v);
-    });
+    _loadManagePermission();
+  }
+
+  Future<void> _loadManagePermission() async {
+    final ownerIs = await _wirdService.isDesignated(widget.teacherId);
+    final sessionIs =
+        ownerIs ? true : await _wirdService.isCurrentSessionDesignated();
+    if (mounted) setState(() => _canManage = ownerIs || sessionIs);
   }
 
   @override
@@ -102,7 +109,7 @@ class _QuranTabState extends State<QuranTab>
                     recordings: recs,
                     pathwayId: widget.pathway.id,
                     teacherId: widget.teacherId,
-                    isDesignated: _isDesignated,
+                    isDesignated: _canManage,
                     quranService: _quranService,
                   );
                 },
