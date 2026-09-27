@@ -3319,7 +3319,7 @@ class _StudentDayChartsScreen extends StatelessWidget {
                     : dayQuran
                           .map(
                             (q) =>
-                                'صفحات ${fmtNum(q.fromPage)} ← ${fmtNum(q.toPage)}',
+                                '${fmtNum(q.count)} صفحة',
                           )
                           .join(' • '),
                 chart: Stack(

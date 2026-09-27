@@ -200,7 +200,7 @@ class _StudentQuranCard extends StatelessWidget {
                     ? 'لم يبدأ الورد بعد'
                     : summary.currentPage == 0
                     ? 'في بداية ختمة جديدة'
-                    : 'وصل إلى صفحة ${summary.currentPage} من ${AppConstants.khatmaPages} (${summary.khatmaPercent}%)',
+                    : 'إجمالي الإنجاز: ${fmtNum(summary.totalPagesRead)} صفحة (${summary.completedKhatmas} ختمة مكتملة)' ,
                 style: textTheme.bodySmall,
               ),
             ],
@@ -362,7 +362,7 @@ class _WardTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'من صفحة ${fmtNum(recording.fromPage)} إلى ${fmtNum(recording.toPage)} (${fmtNum(recording.count)} صفحة)',
+                  'المقدار: ${fmtNum(recording.count)} صفحة',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.inkSecondary,
@@ -421,8 +421,7 @@ class _AddWardDialog extends StatefulWidget {
 
 class _AddWardDialogState extends State<_AddWardDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _fromController = TextEditingController();
-  final _toController = TextEditingController();
+  final _countController = TextEditingController();
   final _notesController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
@@ -432,30 +431,18 @@ class _AddWardDialogState extends State<_AddWardDialog> {
   @override
   void initState() {
     super.initState();
-    if (widget.suggestedFrom <= AppConstants.khatmaPages) {
-      _fromController.text = '${widget.suggestedFrom}';
-    }
   }
 
   @override
   void dispose() {
-    _fromController.dispose();
-    _toController.dispose();
+    _countController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  double? get _autoCount {
-    final from = double.tryParse(_fromController.text.trim());
-    final to = double.tryParse(_toController.text.trim());
-    if (from == null || to == null || to < from) return null;
-    return to - from + 1;
-  }
+  double? get _autoCount => double.tryParse(_countController.text.trim());
 
-  bool get _isKhatma {
-    final to = double.tryParse(_toController.text.trim());
-    return to != null && to >= AppConstants.khatmaPages;
-  }
+  bool get _isKhatma => (_autoCount ?? 0) >= AppConstants.khatmaPages;
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -471,8 +458,7 @@ class _AddWardDialogState extends State<_AddWardDialog> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final from = double.parse(_fromController.text.trim());
-    final to = double.parse(_toController.text.trim());
+    final count = double.parse(_countController.text.trim());
 
     setState(() {
       _isLoading = true;
@@ -484,8 +470,7 @@ class _AddWardDialogState extends State<_AddWardDialog> {
       pathwayId: widget.pathwayId,
       studentId: widget.student.id,
       date: _selectedDate,
-      fromPage: from,
-      toPage: to,
+      count: count,
       notes: _notesController.text,
     );
 
@@ -595,61 +580,20 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                 ),
                 const SizedBox(height: 14),
 
-                // من / إلى (صفحات 1-604)
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _fromController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'من صفحة *',
-                          hintText: '1',
-                        ),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) {
-                          final n = double.tryParse(v?.trim() ?? '');
-                          if (n == null ||
-                              n < 1 ||
-                              n > AppConstants.khatmaPages) {
-                            return '1–${AppConstants.khatmaPages}';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _toController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'إلى صفحة *',
-                          hintText: '${AppConstants.khatmaPages}',
-                        ),
-                        onChanged: (_) => setState(() {}),
-                        validator: (v) {
-                          final n = double.tryParse(v?.trim() ?? '');
-                          if (n == null ||
-                              n < 1 ||
-                              n > AppConstants.khatmaPages) {
-                            return '1–${AppConstants.khatmaPages}';
-                          }
-                          final from = double.tryParse(
-                            _fromController.text.trim(),
-                          );
-                          if (from != null && n < from) {
-                            return 'أقل من "من"';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
+                TextFormField(
+                  controller: _countController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'عدد الصفحات المقروءة *',
+                    hintText: 'مثال: 10',
+                    prefixIcon: Icon(Icons.auto_stories_rounded),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  validator: (v) {
+                    final n = double.tryParse(v?.trim() ?? '');
+                    if (n == null || n <= 0) return 'أدخل عدداً موجباً للصفحات';
+                    return null;
+                  },
                 ),
 
                 if (count != null) ...[
@@ -667,8 +611,8 @@ class _AddWardDialogState extends State<_AddWardDialog> {
                     ),
                     child: Text(
                       _isKhatma
-                          ? '🎉 ${fmtNum(count)} صفحة — إتمام ختمة كاملة!'
-                          : 'المقدار: ${fmtNum(count)} صفحة (محسوب تلقائياً)',
+                          ? '🎉 ${fmtNum(count)} صفحة أو أكثر — إتمام ختمة كاملة!'
+                          : 'سيُضاف ${fmtNum(count)} صفحة إلى مجموع إنجاز الطالب',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _isKhatma

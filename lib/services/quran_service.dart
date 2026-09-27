@@ -113,8 +113,7 @@ class QuranService {
     required String pathwayId,
     required String studentId,
     required DateTime date,
-    required double fromPage,
-    required double toPage,
+    required double count,
     String? notes,
   }) async {
     // تحقق فعلي في الخدمة: المسجل يجب أن يكون المعلم المسؤول المخصص
@@ -124,13 +123,8 @@ class QuranService {
         'تسجيل الأوراد القرآنية الرسمية متاح لمعلم المتون والأوراد المخصص من الإدارة فقط.',
       );
     }
-    // تحقق من نطاق المصحف
-    if (fromPage < 1 ||
-        toPage > AppConstants.khatmaPages ||
-        toPage < fromPage) {
-      return QuranOpResult.fail(
-        'نطاق الصفحات غير صحيح (1 – ${AppConstants.khatmaPages})',
-      );
+    if (!count.isFinite || count <= 0) {
+      return const QuranOpResult.fail('أدخل عدداً صحيحاً موجباً للصفحات.');
     }
 
     try {
@@ -140,9 +134,7 @@ class QuranService {
         'studentId': studentId,
         'weekday': weekdayOf(date),
         'date': Timestamp.fromDate(date),
-        'fromPage': fromPage,
-        'toPage': toPage,
-        'count': toPage - fromPage + 1,
+        'count': count,
         'notes': (notes != null && notes.trim().isNotEmpty)
             ? notes.trim()
             : null,
