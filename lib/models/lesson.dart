@@ -34,6 +34,30 @@ class Lesson {
       totalCount > 0 ? (completedCount / totalCount).clamp(0.0, 1.0) : 0;
   int get progressPercent => (progress * 100).round();
 
+  Lesson copyWith({
+    String? id,
+    String? teacherId,
+    String? pathwayId,
+    String? name,
+    String? type,
+    int? totalCount,
+    int? completedCount,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Lesson(
+      id: id ?? this.id,
+      teacherId: teacherId ?? this.teacherId,
+      pathwayId: pathwayId ?? this.pathwayId,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      totalCount: totalCount ?? this.totalCount,
+      completedCount: completedCount ?? this.completedCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   factory Lesson.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
