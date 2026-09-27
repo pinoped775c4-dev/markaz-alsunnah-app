@@ -111,6 +111,26 @@ void main() {
       expect(lesson.progress, 0.0); // لا يقسم على صفر
     });
 
+    // ===== copyWith =====
+
+    test('copyWith updates fields correctly', () {
+      final lesson = Lesson(
+        id: 'l1',
+        teacherId: 't1',
+        pathwayId: 'mafatih',
+        name: 'الورقات',
+        type: 'nathr',
+        totalCount: 50,
+        completedCount: 10,
+      );
+
+      final updated = lesson.copyWith(completedCount: 20);
+      expect(updated.completedCount, 20);
+      expect(updated.name, 'الورقات');
+      expect(updated.totalCount, 50);
+      expect(updated.remainingCount, 30);
+    });
+
     // ===== toMap =====
 
     test('toMap contains all required fields', () {

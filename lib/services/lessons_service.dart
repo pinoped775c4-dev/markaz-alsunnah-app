@@ -83,6 +83,23 @@ class LessonsService {
     });
   }
 
+  /// مراقبة وثيقة درس محدد للبث المباشر
+  Stream<Lesson?> watchLesson(String lessonId) {
+    return _firestore
+        .collection('lessons')
+        .doc(lessonId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      try {
+        return Lesson.fromFirestore(snapshot);
+      } catch (e) {
+        debugPrint('LessonsService.watchLesson error: $e');
+        return null;
+      }
+    });
+  }
+
   /// حذف درس نهائًا مع كل تسجيلاته اليومية ووثائق حضوره
   /// (نفس نمط deleteMatna — حذف بالدفعات لتجنّب حد الحجم)
   Future<LessonOpResult> deleteLesson(Lesson lesson) async {
@@ -169,6 +186,16 @@ class LessonsService {
 
   // ================= تسجيل درس يومي (معاملة ذرّية) =================
 
+  /// حساب أعلى نقطة وصول (to) لدرس معيّن من قائمة التسجيلات
+  static int computeCompletedFromRecordings(Iterable<LessonRecording> recordings) {
+    if (recordings.isEmpty) return 0;
+    double maxTo = 0;
+    for (final r in recordings) {
+      if (r.to > maxTo) maxTo = r.to;
+    }
+    return maxTo.round();
+  }
+
   Future<LessonOpResult> addDailyRecording({
     required Lesson lesson,
     required DateTime date,
@@ -188,12 +215,17 @@ class LessonsService {
       final recordingRef =
           _firestore.collection('lesson_recordings').doc();
 
+      // المنجز الجديد هو أعلى نقطة وصل إليها الدرس (to)
+      final newCompleted = to.round() > lesson.completedCount
+          ? to.round()
+          : lesson.completedCount;
+
       await _firestore.runTransaction((transaction) async {
-        // 1) تحديث عداد الدرس المنجز
+        // 1) تحديث عداد الدرس المنجز (أعلى نقطة تم الوصول إليها)
         final lessonRef =
             _firestore.collection('lessons').doc(lesson.id);
         transaction.update(lessonRef, {
-          'completedCount': lesson.completedCount + count.round(),
+          'completedCount': newCompleted,
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
@@ -335,11 +367,24 @@ class LessonsService {
     }
   }
 
-  // ================= حذف تسجيل (مع إرجاع العداد) =================
+  // ================= حذف تسجيل (مع تحديث العداد) =================
 
   Future<LessonOpResult> deleteRecording(
       LessonRecording recording, int currentCompleted) async {
     try {
+      // جلب جميع تسجيلات المعلم وحساب أقصى نقطة وصول متبقية بعد حذف هذا التسجيل
+      final allSnap = await _firestore
+          .collection('lesson_recordings')
+          .where('teacherId', isEqualTo: recording.teacherId)
+          .get();
+      final remainingRecordings = allSnap.docs
+          .where((doc) =>
+              doc.id != recording.id &&
+              doc.data()['lessonId'] == recording.lessonId)
+          .map((doc) => LessonRecording.fromFirestore(doc));
+      final newCompleted =
+          computeCompletedFromRecordings(remainingRecordings);
+
       await _firestore.runTransaction((transaction) async {
         transaction.delete(_firestore
             .collection('lesson_recordings')
@@ -354,9 +399,7 @@ class LessonsService {
           transaction.delete(doc.reference);
         }
 
-        // إرجاع العداد المنجز
-        final newCompleted =
-            (currentCompleted - recording.count).clamp(0, 1 << 31);
+        // تحديث العداد المنجز بالقيمة الفعلية الصحيحة
         transaction.update(
             _firestore.collection('lessons').doc(recording.lessonId), {
           'completedCount': newCompleted,
@@ -370,7 +413,7 @@ class LessonsService {
     }
   }
 
-  /// تعديل تسجيل يومي (يُعدّل العداد بالفرق)
+  /// تعديل تسجيل يومي (مع تحديث العداد لأقصى إنجاز)
   Future<LessonOpResult> updateRecording({
     required LessonRecording recording,
     required double oldCount,
@@ -385,9 +428,21 @@ class LessonsService {
   }) async {
     try {
       final newCount = to - from + 1;
-      final diff = newCount - oldCount;
       final totalStudents =
           presentStudentIds.length + absentStudentIds.length;
+
+      // حساب أقصى نقطة وصول لجميع تسجيلات الدرس مع التعديل الجديد
+      final allSnap = await _firestore
+          .collection('lesson_recordings')
+          .where('teacherId', isEqualTo: recording.teacherId)
+          .get();
+      final otherRecordings = allSnap.docs
+          .where((doc) =>
+              doc.id != recording.id &&
+              doc.data()['lessonId'] == recording.lessonId)
+          .map((doc) => LessonRecording.fromFirestore(doc));
+      final maxOther = computeCompletedFromRecordings(otherRecordings);
+      final newCompleted = to.round() > maxOther ? to.round() : maxOther;
 
       await _firestore.runTransaction((transaction) async {
         transaction.update(
@@ -432,14 +487,12 @@ class LessonsService {
           });
         }
 
-        if (diff != 0) {
-          transaction.update(
-              _firestore.collection('lessons').doc(recording.lessonId),
-              {
-                'completedCount': currentCompleted + diff.round(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
-        }
+        transaction.update(
+            _firestore.collection('lessons').doc(recording.lessonId),
+            {
+              'completedCount': newCompleted,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
       });
 
       // البناء المحلي للتسجيل المُعدّل — للعرض المتفائل الفوري

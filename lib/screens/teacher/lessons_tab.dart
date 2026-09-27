@@ -626,12 +626,12 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   /// التسجيلات المضافة/المعدّلة للتو — تُدمج فوق البث (العرض المتفائل)
   final Map<String, LessonRecording> _optimistic = {};
 
-  void _openAddDialog() {
+  void _openAddDialogWithLesson(Lesson currentLesson) {
     showDialog(
       context: context,
       builder: (ctx) => _DailyLessonDialog(
         pathway: widget.pathway,
-        lesson: widget.lesson,
+        lesson: currentLesson,
         lessonsService: widget.lessonsService,
         studentsService: widget.studentsService,
         onSaved: (rec) {
@@ -641,12 +641,12 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
     );
   }
 
-  void _openEditDialog(LessonRecording recording) {
+  void _openEditDialogWithLesson(LessonRecording recording, Lesson currentLesson) {
     showDialog(
       context: context,
       builder: (ctx) => _DailyLessonDialog(
         pathway: widget.pathway,
-        lesson: widget.lesson,
+        lesson: currentLesson,
         lessonsService: widget.lessonsService,
         studentsService: widget.studentsService,
         editing: recording,
@@ -655,6 +655,14 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         },
       ),
     );
+  }
+
+  void _openAddDialog() {
+    _openAddDialogWithLesson(widget.lesson);
+  }
+
+  void _openEditDialog(LessonRecording recording) {
+    _openEditDialogWithLesson(recording, widget.lesson);
   }
 
   @override
@@ -680,84 +688,92 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         ),
         centerTitle: true,
       ),
-      body: StreamBuilder<List<LessonRecording>>(
-        stream: widget.lessonsService.watchRecordings(
-          teacherId: widget.lesson.teacherId,
-          lessonId: widget.lesson.id,
-        ),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return ErrorState(
-              message: 'تعذّر تحميل سجل الدروس اليومية.\n${snapshot.error}',
-              onRetry: () => setState(() {}),
-            );
-          }
+      body: StreamBuilder<Lesson?>(
+        stream: widget.lessonsService.watchLesson(widget.lesson.id),
+        initialData: widget.lesson,
+        builder: (context, lessonSnap) {
+          final liveLesson = lessonSnap.data ?? widget.lesson;
 
-          final recordings = <LessonRecording>[];
-          if (snapshot.hasData) {
-            final byId = {
-              for (final r in snapshot.data!) r.id: r,
-            };
-            // العرض المتفائل: المحلية تتفوق على القادمة من البث
-            _optimistic.forEach((id, rec) {
-              byId[id] = rec;
-            });
-            recordings.addAll(byId.values);
-            recordings.sort((a, b) => b.date.compareTo(a.date));
-          }
+          return StreamBuilder<List<LessonRecording>>(
+            stream: widget.lessonsService.watchRecordings(
+              teacherId: liveLesson.teacherId,
+              lessonId: liveLesson.id,
+            ),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return ErrorState(
+                  message: 'تعذّر تحميل سجل الدروس اليومية.\n${snapshot.error}',
+                  onRetry: () => setState(() {}),
+                );
+              }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-            children: [
-              _BigLessonCard(lesson: widget.lesson),
-              const SizedBox(height: 16),
+              final recordings = <LessonRecording>[];
+              if (snapshot.hasData) {
+                final byId = {
+                  for (final r in snapshot.data!) r.id: r,
+                };
+                // العرض المتفائل: المحلية تتفوق على القادمة من البث
+                _optimistic.forEach((id, rec) {
+                  byId[id] = rec;
+                });
+                recordings.addAll(byId.values);
+                recordings.sort((a, b) => b.date.compareTo(a.date));
+              }
 
-              // الرسم البياني للمنجز (تراكمي)
-              _ProgressChartCard(
-                  lesson: widget.lesson, recordings: recordings),
-              const SizedBox(height: 16),
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                children: [
+                  _BigLessonCard(lesson: liveLesson),
+                  const SizedBox(height: 16),
 
-              // زر إضافة درس يومي
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _openAddDialog,
-                  icon: const Icon(Icons.add_task_rounded),
-                  label: const Text('إضافة درس يومي',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md)),
+                  // الرسم البياني للمنجز (تراكمي)
+                  _ProgressChartCard(
+                      lesson: liveLesson, recordings: recordings),
+                  const SizedBox(height: 16),
+
+                  // زر إضافة درس يومي
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openAddDialogWithLesson(liveLesson),
+                      icon: const Icon(Icons.add_task_rounded),
+                      label: const Text('إضافة درس يومي',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md)),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-              SectionHeader(
-                title: 'سجل الدروس اليومية',
-                subtitle:
-                    '${recordings.length} درسًا مسجلًا • المنجز ${widget.lesson.completedCount} ${widget.lesson.unitLabel}',
-              ),
-              const SizedBox(height: 10),
-
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  recordings.isEmpty)
-                const ListSkeleton(itemCount: 3)
-              else if (recordings.isEmpty)
-                _HistoryEmpty(onAdd: _openAddDialog)
-              else
-                ...recordings.map(
-                  (rec) => _RecordingCard(
-                    recording: rec,
-                    lesson: widget.lesson,
-                    service: widget.lessonsService,
-                    onEdit: () => _openEditDialog(rec),
+                  SectionHeader(
+                    title: 'سجل الدروس اليومية',
+                    subtitle:
+                        '${recordings.length} درسًا مسجلًا • المنجز ${liveLesson.completedCount} ${liveLesson.unitLabel}',
                   ),
-                ),
-            ],
+                  const SizedBox(height: 10),
+
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      recordings.isEmpty)
+                    const ListSkeleton(itemCount: 3)
+                  else if (recordings.isEmpty)
+                    _HistoryEmpty(onAdd: () => _openAddDialogWithLesson(liveLesson))
+                  else
+                    ...recordings.map(
+                      (rec) => _RecordingCard(
+                        recording: rec,
+                        lesson: liveLesson,
+                        service: widget.lessonsService,
+                        onEdit: () => _openEditDialogWithLesson(rec, liveLesson),
+                      ),
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -1870,7 +1886,7 @@ class _RecordingCard extends StatelessWidget {
       context,
       title: 'حذف التسجيل',
       message:
-          'سيتم حذف هذا التسجيل وإرجاع ${fmtNum(recording.count)} ${lesson.unitLabel} من العداد.\nهل أنت متأكد؟',
+          'سيتم حذف هذا التسجيل وتحديث عداد المنجز تلقائياً.\nهل أنت متأكد؟',
       confirmLabel: 'حذف',
       isDestructive: true,
     );
