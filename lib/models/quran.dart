@@ -29,7 +29,10 @@ class QuranRecording {
     this.notes,
     this.createdAt,
     this.isOfficial = false,
-  }) : count = count ?? ((fromPage != null && toPage != null) ? toPage - fromPage + 1 : 0);
+  }) : count = count ??
+           (fromPage != null && toPage != null
+               ? (toPage - fromPage + 1).toDouble()
+               : 0.0);
 
   /// Legacy reads are supported for old UI/report callers; new records have no location.
   double get fromPage => 0;
@@ -42,7 +45,10 @@ class QuranRecording {
     final legacyFrom = (data['fromPage'] as num?)?.toDouble();
     final legacyTo = (data['toPage'] as num?)?.toDouble();
     final storedCount = (data['count'] as num?)?.toDouble();
-    final count = storedCount ?? (legacyFrom != null && legacyTo != null ? legacyTo - legacyFrom + 1 : 0);
+    final double count = storedCount ??
+        (legacyFrom != null && legacyTo != null
+            ? (legacyTo - legacyFrom + 1).toDouble()
+            : 0.0);
     return QuranRecording(
       id: doc.id,
       teacherId: (data['teacherId'] as String?) ?? '',
