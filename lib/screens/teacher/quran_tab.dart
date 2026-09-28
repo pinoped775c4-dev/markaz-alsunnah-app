@@ -181,7 +181,7 @@ class _StudentQuranCard extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-'إجمالي الصفحات المسمّعة: ${fmtNum(summary.totalPagesRead)} صفحة',
+'إجمالي الصفحات المسمّعة: ${fmtNum(summary.totalPagesRead.toDouble())} صفحة',
                 style: textTheme.bodySmall,
               ),
             ],

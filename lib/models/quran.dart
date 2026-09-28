@@ -15,7 +15,7 @@ class QuranRecording {
   final DateTime? createdAt;
   final bool isOfficial;
 
-  const QuranRecording({
+  QuranRecording({
     required this.id,
     required this.teacherId,
     required this.pathwayId,
