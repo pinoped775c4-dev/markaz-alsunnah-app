@@ -79,3 +79,6 @@ jobs:
       - name: النشر
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: إظهار رابط المعاينة
+        run: echo "رابط المعاينة: ${{ steps.deployment.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"
