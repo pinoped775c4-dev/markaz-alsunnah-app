@@ -162,22 +162,7 @@ class _StudentQuranCard extends StatelessWidget {
         title: Row(
           children: [
             Expanded(child: Text(student.name, style: textTheme.titleSmall)),
-            if (summary.completedKhatmas > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.goldSurface,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${summary.completedKhatmas} ختمة',
-                  style: const TextStyle(
-                    color: AppColors.goldDark,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+
           ],
         ),
         subtitle: Padding(
@@ -196,11 +181,7 @@ class _StudentQuranCard extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                summary.recordingsCount == 0
-                    ? 'لم يبدأ الورد بعد'
-                    : summary.currentPage == 0
-                    ? 'في بداية ختمة جديدة'
-                    : 'إجمالي الإنجاز: ${fmtNum(summary.totalPagesRead)} صفحة (${summary.completedKhatmas} ختمة مكتملة)' ,
+'إجمالي الصفحات المسمّعة: ${fmtNum(summary.totalPagesRead)} صفحة',
                 style: textTheme.bodySmall,
               ),
             ],
@@ -337,27 +318,7 @@ class _WardTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (recording.completesKhatma) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gold,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'ختمة 🎉',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+
                   ],
                 ),
                 const SizedBox(height: 3),
