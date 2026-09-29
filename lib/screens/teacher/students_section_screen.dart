@@ -61,10 +61,13 @@ class StudentsSectionScreen extends StatelessWidget {
                   ),
                   Text(
                     AppConstants.centerLocation,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.gold),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.goldDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          height: 1.25,
+                        ),
                   ),
                   const SizedBox(height: 18),
 
