@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APKs
 
 on:
   workflow_dispatch:
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  build-apk:
-    name: Build release APK
+  build-apks:
+    name: Build release APKs by CPU architecture
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -34,18 +34,35 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build split release APKs
+        run: flutter build apk --release --split-per-abi
 
-      - name: Upload APK artifact
+      - name: Upload ARM64 APK (most modern Android phones)
         uses: actions/upload-artifact@v4
         with:
-          name: markaz-alsunnah-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: markaz-alsunnah-arm64-v8a
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Show download instructions
+      - name: Upload ARMv7 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: markaz-alsunnah-armeabi-v7a
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: markaz-alsunnah-x86-64
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Add sizes to workflow summary
         run: |
-          echo "## Android APK" >> "$GITHUB_STEP_SUMMARY"
-          echo "Build succeeded. Download **markaz-alsunnah-android-apk** from the Artifacts section of this workflow run." >> "$GITHUB_STEP_SUMMARY"
+          echo "## Android APKs by architecture" >> "$GITHUB_STEP_SUMMARY"
+          du -h build/app/outputs/flutter-apk/app-*-release.apk >> "$GITHUB_STEP_SUMMARY"
+          echo "Choose ARM64 for most modern Android phones. The APK artifacts are available for 30 days." >> "$GITHUB_STEP_SUMMARY"
