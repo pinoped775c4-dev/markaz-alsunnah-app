@@ -35,7 +35,14 @@ jobs:
         run: flutter pub get
 
       - name: Build split release APKs
-        run: flutter build apk --release --split-per-abi
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! flutter build apk --release --split-per-abi 2>&1 | tee /tmp/flutter-apk-build.log; then
+            error_summary="$(grep -E -A 3 -B 2 'Error:|error:|FAILURE:|What went wrong:|Exception:' /tmp/flutter-apk-build.log | tail -n 20 | tr '\n' ' ' | sed 's/%/%25/g; s/::/%3A%3A/g')"
+            echo "::error::$error_summary"
+            exit 1
+          fi
 
       - name: Upload ARM64 APK (most modern Android phones)
         uses: actions/upload-artifact@v4
