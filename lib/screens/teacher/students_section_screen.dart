@@ -11,8 +11,7 @@ import '../../widgets/pathway_circle_item.dart';
 import 'pathway_detail_screen.dart';
 
 /// قسم "الطلاب" في حساب المشرف:
-/// متابعة المستويات التعليمية كما هي تماماً في حساب المعلم المعتاد
-/// (4 أيقونات دائرية، والنقر يفتح تفاصيل المستوى: الدروس/المتون/القرآن).
+/// متابعة المستويات التعليمية ببطاقات شبكية؛ النقر يفتح تفاصيل المستوى.
 class StudentsSectionScreen extends StatelessWidget {
   const StudentsSectionScreen({super.key});
 
@@ -77,10 +76,9 @@ class StudentsSectionScreen extends StatelessWidget {
                     subtitle: 'اختر مستوى لمتابعة طلابه ودروسه',
                   ),
 
-                  // أيقونات المستويات: 4 أيقونات في صف واحد
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  // بطاقات المستويات — عمودان على الهاتف وثلاثة على الشاشة العريضة.
+                  SectionItemGrid(
+                    items: [
                       for (final pathway in circlePathways)
                         CircleSectionItem(
                           imageAsset: AppConstants
@@ -92,7 +90,8 @@ class StudentsSectionScreen extends StatelessWidget {
                               : Icons.school_rounded,
                           badge: CountBadge(
                             text: studentsCountLabel(
-                                counts[pathway.id] ?? 0),
+                              counts[pathway.id] ?? 0,
+                            ),
                             active: (counts[pathway.id] ?? 0) > 0,
                             gold: pathway.id == 'quran',
                           ),

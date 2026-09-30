@@ -12,6 +12,8 @@ permissions:
 
 jobs:
   build-apks:
+    # Commits tagged [web-only] update the web preview without producing Android APKs.
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[web-only]') }}
     name: Build release APKs by CPU architecture
     runs-on: ubuntu-latest
     steps:

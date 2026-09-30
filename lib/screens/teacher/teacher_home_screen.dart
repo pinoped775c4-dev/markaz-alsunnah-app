@@ -17,12 +17,10 @@ import 'pathway_detail_screen.dart';
 import 'students_section_screen.dart';
 import 'teachers_section_screen.dart';
 
-/// لوحة المعلم: شعار بالأعلى + اسم الشيخ + صورة شخصية + زر إعدادات
-/// + 4 أيقونات دائرية للمستويات (بدون البطاقة الذهبية).
+/// لوحة المعلم: تحية باسم المعلم + بطاقة هوية المركز + شبكة بطاقات للمستويات.
 ///
 /// حساب المشرف (معلم المتون والأوراد المخصص من الإدارة) يختلف:
-/// يعرض قسمين دائريتين — "المعلمون" للدخول في حساب أي معلم،
-/// و"الطلاب" للمتابعة المعتادة عبر المستويات.
+/// يعرض بطاقتي "المعلمون" للدخول في حساب أي معلم، و"الطلاب" للمتابعة.
 class TeacherHomeScreen extends StatelessWidget {
   const TeacherHomeScreen({super.key});
 
@@ -124,41 +122,78 @@ class TeacherHomeScreen extends StatelessWidget {
                         ),
                       ),
 
-                      // ===== شعار المركز في الأعلى =====
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 20),
-                          child: Center(child: CircularLogo(size: 108)),
-                        ),
-                      ),
-
-                      // ===== اسم المركز =====
+                      // بطاقة ترحيب مختصرة تجمع هوية المركز وإجمالي الطلاب.
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                          child: Column(
-                            children: [
-                              Text(
-                                AppConstants.centerName,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      color: AppColors.primaryDark,
-                                      height: 1.4,
-                                    ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                AppConstants.centerLocation,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppColors.gold),
-                              ),
-                            ],
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              gradient: AppColors.primaryGradient,
+                              borderRadius: BorderRadius.circular(AppRadius.xl),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.18),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const CircularLogo(size: 64, elevated: false),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        AppConstants.centerName,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.3,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        AppConstants.centerLocation,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: AppColors.goldSoft),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.groups_rounded,
+                                            size: 16,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            studentsCountLabel(totalStudents),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -180,40 +215,32 @@ class TeacherHomeScreen extends StatelessWidget {
                           child: Padding(
                             padding:
                                 const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: CircleSectionItem(
-                                    imageAsset:
-                                        AppConstants.teachersSectionAsset,
-                                    label: 'المعلمون',
-                                    badge: const _TeachersCountBadge(),
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const TeachersSectionScreen(),
-                                      ),
+                            child: SectionItemGrid(
+                              items: [
+                                CircleSectionItem(
+                                  imageAsset: AppConstants.teachersSectionAsset,
+                                  label: 'المعلمون',
+                                  badge: const _TeachersCountBadge(),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const TeachersSectionScreen(),
                                     ),
                                   ),
                                 ),
-                                Expanded(
-                                  child: CircleSectionItem(
-                                    imageAsset:
-                                        AppConstants.studentsSectionAsset,
-                                    label: 'الطلاب',
-                                    badge: CountBadge(
-                                      text:
-                                          studentsCountLabel(totalStudents),
-                                      active: totalStudents > 0,
-                                    ),
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const StudentsSectionScreen(),
-                                      ),
+                                CircleSectionItem(
+                                  imageAsset: AppConstants.studentsSectionAsset,
+                                  label: 'الطلاب',
+                                  badge: CountBadge(
+                                    text: studentsCountLabel(totalStudents),
+                                    active: totalStudents > 0,
+                                  ),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const StudentsSectionScreen(),
                                     ),
                                   ),
                                 ),
@@ -237,9 +264,8 @@ class TeacherHomeScreen extends StatelessWidget {
                           child: Padding(
                             padding:
                                 const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                            child: SectionItemGrid(
+                              items: [
                                 for (final pathway in circlePathways)
                                   CircleSectionItem(
                                     imageAsset: AppConstants
@@ -250,9 +276,9 @@ class TeacherHomeScreen extends StatelessWidget {
                                         ? Icons.menu_book_rounded
                                         : Icons.school_rounded,
                                     badge: CountBadge(
-                                      text:
-                                          studentsCountLabel(
-                                              counts[pathway.id] ?? 0),
+                                      text: studentsCountLabel(
+                                        counts[pathway.id] ?? 0,
+                                      ),
                                       active: (counts[pathway.id] ?? 0) > 0,
                                       gold: pathway.id == 'quran',
                                     ),
