@@ -160,11 +160,11 @@ class TeacherAccountScreen extends StatelessWidget {
                   ),
                 ),
 
-                // ===== بطاقات المستويات التعليمية =====
+                // ===== قائمة المستويات التعليمية =====
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                    child: SectionItemGrid(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                    child: SectionItemList(
                       items: [
                         for (final pathway in circlePathways)
                           CircleSectionItem(

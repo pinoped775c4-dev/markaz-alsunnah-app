@@ -11,7 +11,7 @@ import '../../widgets/pathway_circle_item.dart';
 import 'pathway_detail_screen.dart';
 
 /// قسم "الطلاب" في حساب المشرف:
-/// متابعة المستويات التعليمية ببطاقات شبكية؛ النقر يفتح تفاصيل المستوى.
+/// متابعة المستويات التعليمية بقائمة واضحة؛ النقر يفتح تفاصيل المستوى.
 class StudentsSectionScreen extends StatelessWidget {
   const StudentsSectionScreen({super.key});
 
@@ -39,7 +39,7 @@ class StudentsSectionScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                 children: [
-                  // شعار المركز
+                  // شعار المركز والهوية كما هي.
                   const Padding(
                     padding: EdgeInsets.only(top: 10),
                     child: Center(child: CircularLogo(size: 96)),
@@ -76,8 +76,8 @@ class StudentsSectionScreen extends StatelessWidget {
                     subtitle: 'اختر مستوى لمتابعة طلابه ودروسه',
                   ),
 
-                  // بطاقات المستويات — عمودان على الهاتف وثلاثة على الشاشة العريضة.
-                  SectionItemGrid(
+                  // قائمة المستويات: صف واضح لكل مستوى مع عدد طلابه.
+                  SectionItemList(
                     items: [
                       for (final pathway in circlePathways)
                         CircleSectionItem(

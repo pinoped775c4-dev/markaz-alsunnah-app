@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// شارة عدد صغيرة — تظل واضحة في الوضعين الفاتح والداكن.
+/// شارة عدد صغيرة وواضحة في الوضعين الفاتح والداكن.
 class CountBadge extends StatelessWidget {
   final String text;
   final bool active;
@@ -56,8 +56,7 @@ class CountBadge extends StatelessWidget {
   }
 }
 
-/// بطاقة قسم تفاعلية بدل الأيقونة الدائرية الصغيرة.
-/// تتشاركها لوحات المعلم والمشرف حتى يبقى شكل الأقسام موحدًا.
+/// صف تنقل مسطّح للمستوى أو القسم؛ متعمد أن يكون أخف من البطاقات المرتفعة.
 class CircleSectionItem extends StatefulWidget {
   final String? imageAsset;
   final String label;
@@ -88,81 +87,63 @@ class _CircleSectionItemState extends State<CircleSectionItem> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final accent = widget.isGold ? AppColors.gold : scheme.primary;
-    final radius = BorderRadius.circular(AppRadius.lg);
 
     return AnimatedScale(
-      scale: _isPressed ? 0.985 : 1,
-      duration: const Duration(milliseconds: 130),
+      scale: _isPressed ? 0.99 : 1,
+      duration: const Duration(milliseconds: 120),
       curve: Curves.easeOutCubic,
       child: Material(
-        color: scheme.surface,
-        borderRadius: radius,
+        color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
           onHighlightChanged: (pressed) {
             if (_isPressed != pressed) setState(() => _isPressed = pressed);
           },
-          borderRadius: radius,
-          splashColor: accent.withValues(alpha: 0.08),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(color: scheme.outlineVariant),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: scheme.brightness == Brightness.dark ? 0.08 : 0.035,
+          splashColor: accent.withValues(alpha: 0.07),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 12, 10),
+            child: Row(
+              children: [
+                _SectionImage(
+                  imageAsset: widget.imageAsset,
+                  accent: accent,
+                  isGold: widget.isGold,
+                  fallbackIcon: widget.fallbackIcon,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (widget.badge != null) ...[
+                        const SizedBox(height: 5),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: widget.badge!,
+                        ),
+                      ],
+                    ],
                   ),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  Directionality.of(context) == ui.TextDirection.rtl
+                      ? Icons.chevron_left_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 20,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(13),
-              child: Row(
-                children: [
-                  _SectionImage(
-                    imageAsset: widget.imageAsset,
-                    accent: accent,
-                    isGold: widget.isGold,
-                    fallbackIcon: widget.fallbackIcon,
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (widget.badge != null) ...[
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: widget.badge!,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Directionality.of(context) == ui.TextDirection.rtl
-                        ? Icons.chevron_left_rounded
-                        : Icons.chevron_right_rounded,
-                    size: 18,
-                    color: scheme.onSurfaceVariant.withValues(alpha: 0.75),
-                  ),
-                ],
-              ),
             ),
           ),
         ),
@@ -171,31 +152,46 @@ class _CircleSectionItemState extends State<CircleSectionItem> {
   }
 }
 
-/// شبكة متجاوبة للبطاقات؛ عمودان على الهاتف وثلاثة على الشاشات العريضة.
-class SectionItemGrid extends StatelessWidget {
+/// قائمة أقسام موحدة بفواصل هادئة بدل شبكة البطاقات.
+class SectionItemList extends StatelessWidget {
   final List<Widget> items;
 
-  const SectionItemGrid({super.key, required this.items});
+  const SectionItemList({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 720 ? 3 : 2;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            mainAxisExtent: 104,
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < items.length; index++) ...[
+                  items[index],
+                  if (index != items.length - 1)
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 74,
+                      endIndent: 14,
+                      color: scheme.outlineVariant.withValues(alpha: 0.6),
+                    ),
+                ],
+              ],
+            ),
           ),
-          itemBuilder: (context, index) => items[index],
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -222,13 +218,11 @@ class _SectionImage extends StatelessWidget {
             alpha: scheme.brightness == Brightness.dark ? 0.18 : 0.12,
           )
         : scheme.primaryContainer;
+
     return Container(
       width: 56,
       height: 56,
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: radius,
-      ),
+      decoration: BoxDecoration(color: surface, borderRadius: radius),
       child: ClipRRect(
         borderRadius: radius,
         child: imageAsset == null

@@ -133,7 +133,7 @@ class _TeachersReportsTab extends StatelessWidget {
           subtitle: 'اضغط على قسم لعرض معلميه وتقاريرهم اليومية',
         ),
         const SizedBox(height: 4),
-        SectionItemGrid(
+        SectionItemList(
           items: [
             for (final pathway in pathways)
               _PathwayReportItem(
@@ -177,7 +177,7 @@ class _StudentsReportsTab extends StatelessWidget {
           subtitle: 'اضغط على قسم لعرض طلاب المعلم المسؤول وتقاريرهم',
         ),
         const SizedBox(height: 4),
-        SectionItemGrid(
+        SectionItemList(
           items: [
             for (final pathway in pathways)
               _PathwayReportItem(
@@ -229,13 +229,10 @@ class _PathwayReportItem extends StatelessWidget {
     final scheme = theme.colorScheme;
     final imageAsset = AppConstants.pathwayImageAsset(pathway.id);
     final accent = pathway.id == 'quran' ? AppColors.gold : scheme.primary;
-    final radius = BorderRadius.circular(AppRadius.lg);
 
     return Material(
-      color: scheme.surface,
-      borderRadius: radius,
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: radius,
         onTap: onTap ??
             () => Navigator.push(
               context,
@@ -247,71 +244,65 @@ class _PathwayReportItem extends StatelessWidget {
                 ),
               ),
             ),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            border: Border.all(color: scheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: imageAsset == null
-                      ? _fallback(accent)
-                      : Image.asset(
-                          imageAsset,
-                          fit: BoxFit.cover,
-                          cacheWidth: 208,
-                          cacheHeight: 208,
-                          errorBuilder: (_, __, ___) => _fallback(accent),
-                        ),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 12, 10),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pathway.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
+                clipBehavior: Clip.antiAlias,
+                child: imageAsset == null
+                    ? _fallback(accent)
+                    : Image.asset(
+                        imageAsset,
+                        fit: BoxFit.cover,
+                        cacheWidth: 208,
+                        cacheHeight: 208,
+                        errorBuilder: (_, __, ___) => _fallback(accent),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontSize: 10.5,
-                          color: scheme.onSurfaceVariant,
-                        ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pathway.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Icon(
-                  Directionality.of(context) == ui.TextDirection.rtl
-                      ? Icons.chevron_left_rounded
-                      : Icons.chevron_right_rounded,
-                  color: accent,
-                  size: 20,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Directionality.of(context) == ui.TextDirection.rtl
+                    ? Icons.chevron_left_rounded
+                    : Icons.chevron_right_rounded,
+                color: accent,
+                size: 20,
+              ),
+            ],
           ),
         ),
       ),

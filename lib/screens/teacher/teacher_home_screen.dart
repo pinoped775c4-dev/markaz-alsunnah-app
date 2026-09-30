@@ -17,7 +17,7 @@ import 'pathway_detail_screen.dart';
 import 'students_section_screen.dart';
 import 'teachers_section_screen.dart';
 
-/// لوحة المعلم: تحية باسم المعلم + بطاقة هوية المركز + شبكة بطاقات للمستويات.
+/// لوحة المعلم: تحية باسم المعلم + ملخص بسيط + قائمة مسارات تعليمية.
 ///
 /// حساب المشرف (معلم المتون والأوراد المخصص من الإدارة) يختلف:
 /// يعرض بطاقتي "المعلمون" للدخول في حساب أي معلم، و"الطلاب" للمتابعة.
@@ -122,78 +122,94 @@ class TeacherHomeScreen extends StatelessWidget {
                         ),
                       ),
 
-                      // بطاقة ترحيب مختصرة تجمع هوية المركز وإجمالي الطلاب.
+                      // ترويسة هادئة للمركز مع ملخص العدد دون خلفية متدرجة.
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.primaryGradient,
-                              borderRadius: BorderRadius.circular(AppRadius.xl),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.18),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 8),
+                          child: Builder(
+                            builder: (context) {
+                              final theme = Theme.of(context);
+                              final scheme = theme.colorScheme;
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.lg),
+                                  border: Border.all(
+                                    color: scheme.outlineVariant,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                const CircularLogo(size: 64, elevated: false),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        AppConstants.centerName,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
+                                child: Row(
+                                  children: [
+                                    const CircularLogo(
+                                      size: 64,
+                                      elevated: false,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            AppConstants.centerName,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.titleSmall
+                                                ?.copyWith(
+                                              fontSize: 13,
                                               height: 1.3,
                                             ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        AppConstants.centerLocation,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: AppColors.goldSoft),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.groups_rounded,
-                                            size: 16,
-                                            color: Colors.white,
                                           ),
-                                          const SizedBox(width: 5),
+                                          const SizedBox(height: 3),
                                           Text(
-                                            studentsCountLabel(totalStudents),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
+                                            AppConstants.centerLocation,
+                                            style: theme.textTheme.bodySmall
                                                 ?.copyWith(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                              color: scheme.brightness ==
+                                                      Brightness.dark
+                                                  ? AppColors.goldSoft
+                                                  : AppColors.goldDark,
+                                              fontSize: 11,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: scheme.primaryContainer,
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.md,
+                                        ),
+                                      ),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 112,
+                                        ),
+                                        child: Text(
+                                          studentsCountLabel(totalStudents),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: scheme.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -214,8 +230,8 @@ class TeacherHomeScreen extends StatelessWidget {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                            child: SectionItemGrid(
+                                const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                            child: SectionItemList(
                               items: [
                                 CircleSectionItem(
                                   imageAsset: AppConstants.teachersSectionAsset,
@@ -263,8 +279,8 @@ class TeacherHomeScreen extends StatelessWidget {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
-                            child: SectionItemGrid(
+                                const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                            child: SectionItemList(
                               items: [
                                 for (final pathway in circlePathways)
                                   CircleSectionItem(
