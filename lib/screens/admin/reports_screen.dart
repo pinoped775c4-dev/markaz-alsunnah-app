@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -303,7 +304,7 @@ class _PathwayReportItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Icon(
-                  Directionality.of(context) == TextDirection.rtl
+                  Directionality.of(context) == ui.TextDirection.rtl
                       ? Icons.chevron_left_rounded
                       : Icons.chevron_right_rounded,
                   color: accent,
