@@ -31,7 +31,7 @@ class SettingsService extends ChangeNotifier {
         _themeMode = ThemeMode.light;
       }
 
-      final lang = prefs.getString(_kLocale);
+      final lang = await _preferences.getString(_kLocale);
       if (lang == 'en') {
         _locale = const Locale('en');
       } else {

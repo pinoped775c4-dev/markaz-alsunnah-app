@@ -36,7 +36,16 @@ jobs:
 
       - name: Publish the resolved package lock for synchronization
         shell: bash
-        run: echo "::notice title=Resolved pubspec.lock (base64)::$(base64 -w 0 pubspec.lock)"
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+
+          encoded = base64.b64encode(Path('pubspec.lock').read_bytes()).decode()
+          chunk_size = 3000
+          for index, start in enumerate(range(0, len(encoded), chunk_size), start=1):
+              print(f'::notice title=dependency-lock-{index:02d}::{encoded[start:start + chunk_size]}')
+          PY
 
       - name: Build split release APKs
         shell: bash
