@@ -889,7 +889,7 @@ class _ProgressChartCard extends StatelessWidget {
                             reservedSize: 34,
                             interval: maxY > 4 ? maxY / 4 : 1.0,
                             getTitlesWidget: (v, meta) => SideTitleWidget(
-                              axisSide: meta.axisSide,
+                              meta: meta,
                               space: 6,
                               child: Text(
                                 v.toInt().toString(),
@@ -917,7 +917,7 @@ class _ProgressChartCard extends StatelessWidget {
                               final d = DateFormat('d/M', 'ar')
                                   .format(sorted[idx].date);
                               return SideTitleWidget(
-                                axisSide: meta.axisSide,
+                                meta: meta,
                                 space: 6,
                                 child: Text(
                                   d,

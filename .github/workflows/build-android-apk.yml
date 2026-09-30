@@ -34,12 +34,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Export the resolved package lock for reproducible builds
-        uses: actions/upload-artifact@v4
-        with:
-          name: resolved-pubspec-lock
-          path: pubspec.lock
-          retention-days: 1
+      - name: Publish the resolved package lock for synchronization
+        shell: bash
+        run: echo "::notice title=Resolved pubspec.lock (base64)::$(base64 -w 0 pubspec.lock)"
 
       - name: Build split release APKs
         shell: bash
