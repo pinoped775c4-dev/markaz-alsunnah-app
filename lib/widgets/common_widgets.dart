@@ -34,11 +34,21 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
+          Container(
+            width: 3,
+            height: subtitle == null ? 22 : 34,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,7 +141,8 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return Center(
       child: SingleChildScrollView(
@@ -143,12 +154,18 @@ class EmptyState extends StatelessWidget {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppColors.primarySurface,
+                color: theme.colorScheme.primaryContainer,
                 shape: BoxShape.circle,
-                border:
-                    Border.all(color: AppColors.primaryBorder, width: 1.5),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.14),
+                  width: 1.5,
+                ),
               ),
-              child: Icon(icon, size: 44, color: AppColors.primary),
+              child: Icon(
+                icon,
+                size: 44,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
             const SizedBox(height: 22),
             Text(title, textAlign: TextAlign.center,
@@ -180,13 +197,14 @@ class ListItemSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.lineSoft),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: const Row(
         children: [
@@ -229,7 +247,7 @@ class _ShimmerBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppColors.lineSoft,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         shape: circle ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: circle ? null : BorderRadius.circular(8),
       ),
@@ -262,7 +280,8 @@ class ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
 
     return Center(
       child: Padding(
@@ -273,12 +292,15 @@ class ErrorState extends StatelessWidget {
             Container(
               width: 88,
               height: 88,
-              decoration: const BoxDecoration(
-                color: AppColors.errorSurface,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.cloud_off_rounded,
-                  size: 40, color: AppColors.error),
+              child: Icon(
+                Icons.cloud_off_rounded,
+                size: 40,
+                color: theme.colorScheme.onErrorContainer,
+              ),
             ),
             const SizedBox(height: 18),
             Text(message, textAlign: TextAlign.center,

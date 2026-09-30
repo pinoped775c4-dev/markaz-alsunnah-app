@@ -20,24 +20,24 @@ dependencies:
 
   # State management & storage
   provider: 6.1.5+1
-  shared_preferences: 2.5.3
+  shared_preferences: ^2.5.5
 
   # Charts
-  fl_chart: 0.69.2
+  fl_chart: ^1.2.0
 
   # Arabic date formatting (الخط العربي أصبح أصلًا محليًا في assets/fonts)
-  intl: 0.20.2
+  intl: ^0.20.3
 
   # اختيار الصورة الشخصية من المعرض
-  image_picker: 1.1.2
+  image_picker: ^1.2.3
 
   # تشفير كلمات المرور المؤقتة (SHA-256)
-  crypto: ^3.0.3
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

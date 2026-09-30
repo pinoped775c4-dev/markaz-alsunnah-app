@@ -7,6 +7,10 @@ class SettingsService extends ChangeNotifier {
   static const _kThemeMode = 'settings_theme_mode';
   static const _kLocale = 'settings_locale';
 
+  // The async API avoids stale in-memory caches when preferences are read or
+  // written from more than one isolate or plugin.
+  final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+
   ThemeMode _themeMode = ThemeMode.light;
   Locale _locale = const Locale('ar');
 
@@ -18,8 +22,7 @@ class SettingsService extends ChangeNotifier {
   /// تحميل الإعدادات المحفوظة (يُستدعى قبل runApp)
   Future<void> load() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final mode = prefs.getString(_kThemeMode);
+      final mode = await _preferences.getString(_kThemeMode);
       if (mode == 'dark') {
         _themeMode = ThemeMode.dark;
       } else if (mode == 'system') {
@@ -45,8 +48,7 @@ class SettingsService extends ChangeNotifier {
     _themeMode = mode;
     notifyListeners();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
+      await _preferences.setString(
         _kThemeMode,
         mode == ThemeMode.dark
             ? 'dark'
@@ -62,8 +64,7 @@ class SettingsService extends ChangeNotifier {
     _locale = locale;
     notifyListeners();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kLocale, locale.languageCode);
+      await _preferences.setString(_kLocale, locale.languageCode);
     } catch (_) {}
   }
 }
