@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +19,6 @@ import '../../services/students_service.dart';
 import '../../services/teachers_service.dart';
 import '../../widgets/branding.dart';
 import '../../widgets/common_widgets.dart';
-import '../../widgets/pathway_circle_item.dart';
 
 /// شاشة تقارير الإدارة — تبويبان:
 /// 1) تقارير المعلمين: الأقسام ← معلمو القسم ونشاطهم (دروس/متون) ← تقارير يومية
@@ -133,16 +131,25 @@ class _TeachersReportsTab extends StatelessWidget {
           subtitle: 'اضغط على قسم لعرض معلميه وتقاريرهم اليومية',
         ),
         const SizedBox(height: 4),
-        SectionItemList(
-          items: [
-            for (final pathway in pathways)
-              _PathwayReportItem(
-                pathway: pathway,
-                teachersService: teachersService,
-                reportsService: reportsService,
-              ),
-          ],
-        ),
+        // ===== الأقسام بأيقونات دائرية (صفوف × عمودان) =====
+        for (var row = 0; row * 2 < pathways.length; row++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var col = 0; col < 2; col++)
+                  if (row * 2 + col < pathways.length)
+                    _PathwayReportItem(
+                      pathway: pathways[row * 2 + col],
+                      teachersService: teachersService,
+                      reportsService: reportsService,
+                    )
+                  else
+                    const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -177,30 +184,39 @@ class _StudentsReportsTab extends StatelessWidget {
           subtitle: 'اضغط على قسم لعرض طلاب المعلم المسؤول وتقاريرهم',
         ),
         const SizedBox(height: 4),
-        SectionItemList(
-          items: [
-            for (final pathway in pathways)
-              _PathwayReportItem(
-                pathway: pathway,
-                teachersService: teachersService,
-                reportsService: reportsService,
-                subtitle: 'طلاب المعلم المسؤول',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PathwayStudentsScreen(
-                      pathway: pathway,
-                      studentsService: studentsService,
+        // ===== الأقسام بأيقونات دائرية (صفوف × عمودان) =====
+        for (var row = 0; row * 2 < pathways.length; row++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var col = 0; col < 2; col++)
+                  if (row * 2 + col < pathways.length)
+                    _PathwayReportItem(
+                      pathway: pathways[row * 2 + col],
                       teachersService: teachersService,
                       reportsService: reportsService,
-                      mutunService: mutunService,
-                      quranService: quranService,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+                      subtitle: 'طلاب المعلم المسؤول',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PathwayStudentsScreen(
+                            pathway: pathways[row * 2 + col],
+                            studentsService: studentsService,
+                            teachersService: teachersService,
+                            reportsService: reportsService,
+                            mutunService: mutunService,
+                            quranService: quranService,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -225,82 +241,70 @@ class _PathwayReportItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final imageAsset = AppConstants.pathwayImageAsset(pathway.id);
-    final accent = pathway.id == 'quran' ? AppColors.gold : scheme.primary;
 
-    return Material(
-      color: Colors.transparent,
+    return Expanded(
       child: InkWell(
-        onTap: onTap ??
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PathwayTeachersScreen(
-                  pathway: pathway,
-                  teachersService: teachersService,
-                  reportsService: reportsService,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap:
+            onTap ??
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PathwayTeachersScreen(
+                    pathway: pathway,
+                    teachersService: teachersService,
+                    reportsService: reportsService,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 12, 10),
-          child: Row(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 92,
+                height: 92,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: imageAsset == null
-                    ? _fallback(accent)
-                    : Image.asset(
-                        imageAsset,
-                        fit: BoxFit.cover,
-                        cacheWidth: 208,
-                        cacheHeight: 208,
-                        errorBuilder: (_, __, ___) => _fallback(accent),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      pathway.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        color: scheme.onSurfaceVariant,
-                      ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.goldSoft, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.14),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
+                child: ClipOval(
+                  child: imageAsset != null
+                      ? Image.asset(
+                          imageAsset,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallback(),
+                        )
+                      : _fallback(),
+                ),
               ),
-              const SizedBox(width: 10),
-              Icon(
-                Directionality.of(context) == ui.TextDirection.rtl
-                    ? Icons.chevron_left_rounded
-                    : Icons.chevron_right_rounded,
-                color: accent,
-                size: 20,
+              const SizedBox(height: 10),
+              Text(
+                pathway.name,
+                textAlign: TextAlign.center,
+                style: textTheme.titleSmall?.copyWith(
+                  fontSize: 13,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: textTheme.bodySmall?.copyWith(
+                  fontSize: 10.5,
+                  color: AppColors.gold,
+                ),
               ),
             ],
           ),
@@ -309,10 +313,10 @@ class _PathwayReportItem extends StatelessWidget {
     );
   }
 
-  Widget _fallback(Color accent) => ColoredBox(
-        color: accent.withValues(alpha: 0.10),
-        child: Icon(Icons.school_rounded, color: accent, size: 28),
-      );
+  Widget _fallback() => Container(
+    color: AppColors.primarySurface,
+    child: const Icon(Icons.school_rounded, color: AppColors.primary, size: 36),
+  );
 }
 
 // ==================== شاشة معلمي القسم ====================

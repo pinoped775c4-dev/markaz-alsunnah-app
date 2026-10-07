@@ -1,10 +1,9 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// شارة عدد صغيرة وواضحة في الوضعين الفاتح والداكن.
+/// شارة عدد صغيرة — تُستخدم تحت الأيقونات الدائرية
+/// (نفس تصميم شارة عدد الطلاب السابقة)
 class CountBadge extends StatelessWidget {
   final String text;
   final bool active;
@@ -19,44 +18,35 @@ class CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final foreground = !active
-        ? scheme.onSurfaceVariant
-        : gold
-            ? (scheme.brightness == Brightness.dark
-                ? AppColors.goldSoft
-                : AppColors.goldDark)
-            : scheme.primary;
-    final background = !active
-        ? scheme.surfaceContainerHighest
-        : gold
-            ? AppColors.gold.withValues(
-                alpha: scheme.brightness == Brightness.dark ? 0.18 : 0.12,
-              )
-            : scheme.primaryContainer;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
+        color: active
+            ? (gold
+                ? AppColors.goldSurface
+                : AppColors.primarySurface)
+            : AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          height: 1.15,
-          fontWeight: FontWeight.w700,
+          color: active
+              ? (gold ? AppColors.goldDark : AppColors.primaryDark)
+              : AppColors.inkMuted,
+          fontSize: 10.5,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 }
 
-/// صف تنقل مسطّح للمستوى أو القسم؛ متعمد أن يكون أخف من البطاقات المرتفعة.
+/// أيقونة دائرية بصورة مدموجة — التصميم الموحّد لأقسام حساب المعلم:
+/// الدائرة (صورة + حافة ذهبية + ظل ناعم) ثم اسم القسم ثم شارة اختيارية.
+///
+/// تُستخدم في: مستويات حساب المعلم، وقسمي "المعلمون" و"الطلاب"
+/// في حساب المشرف، وشاشة "حساب المعلم".
 class CircleSectionItem extends StatefulWidget {
   final String? imageAsset;
   final String label;
@@ -84,108 +74,69 @@ class _CircleSectionItemState extends State<CircleSectionItem> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final accent = widget.isGold ? AppColors.gold : scheme.primary;
+    final textTheme = Theme.of(context).textTheme;
+    final accent = widget.isGold ? AppColors.gold : AppColors.primary;
+    final radius = BorderRadius.circular(AppRadius.lg);
 
-    return AnimatedScale(
-      scale: _isPressed ? 0.99 : 1,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOutCubic,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
-          onHighlightChanged: (pressed) {
-            if (_isPressed != pressed) setState(() => _isPressed = pressed);
-          },
-          splashColor: accent.withValues(alpha: 0.07),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        onTap: widget.onTap,
+        onHighlightChanged: (pressed) {
+          if (_isPressed != pressed) setState(() => _isPressed = pressed);
+        },
+        borderRadius: radius,
+        splashColor: accent.withValues(alpha: 0.08),
+        highlightColor: accent.withValues(alpha: 0.04),
+        child: AnimatedScale(
+          scale: _isPressed ? 0.975 : 1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 12, 10),
-            child: Row(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
               children: [
-                _SectionImage(
-                  imageAsset: widget.imageAsset,
-                  accent: accent,
-                  isGold: widget.isGold,
-                  fallbackIcon: widget.fallbackIcon,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
+                // الدائرة بالصورة المدموجة
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: widget.isGold
+                          ? AppColors.gold
+                          : AppColors.goldSoft,
+                      width: 2.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.15),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
                       ),
-                      if (widget.badge != null) ...[
-                        const SizedBox(height: 5),
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: widget.badge!,
-                        ),
-                      ],
                     ],
                   ),
+                  child: ClipOval(
+                    child: widget.imageAsset != null
+                        ? Image.asset(
+                            widget.imageAsset!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _fallbackIcon(),
+                          )
+                        : _fallbackIcon(),
+                  ),
                 ),
-                const SizedBox(width: 10),
-                Icon(
-                  Directionality.of(context) == ui.TextDirection.rtl
-                      ? Icons.chevron_left_rounded
-                      : Icons.chevron_right_rounded,
-                  size: 20,
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                const SizedBox(height: 10),
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontSize: 12.5, height: 1.25),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// قائمة أقسام موحدة بفواصل هادئة بدل شبكة البطاقات.
-class SectionItemList extends StatelessWidget {
-  final List<Widget> items;
-
-  const SectionItemList({super.key, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              border: Border.all(color: scheme.outlineVariant),
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < items.length; index++) ...[
-                  items[index],
-                  if (index != items.length - 1)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      indent: 74,
-                      endIndent: 14,
-                      color: scheme.outlineVariant.withValues(alpha: 0.6),
-                    ),
+                if (widget.badge != null) ...[
+                  const SizedBox(height: 4),
+                  widget.badge!,
                 ],
               ],
             ),
@@ -194,63 +145,14 @@ class SectionItemList extends StatelessWidget {
       ),
     );
   }
-}
 
-class _SectionImage extends StatelessWidget {
-  final String? imageAsset;
-  final Color accent;
-  final bool isGold;
-  final IconData fallbackIcon;
-
-  const _SectionImage({
-    required this.imageAsset,
-    required this.accent,
-    required this.isGold,
-    required this.fallbackIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final radius = BorderRadius.circular(AppRadius.md);
-    final surface = isGold
-        ? AppColors.gold.withValues(
-            alpha: scheme.brightness == Brightness.dark ? 0.18 : 0.12,
-          )
-        : scheme.primaryContainer;
-
+  Widget _fallbackIcon() {
     return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(color: surface, borderRadius: radius),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: imageAsset == null
-            ? _fallback(context)
-            : Image.asset(
-                imageAsset!,
-                fit: BoxFit.cover,
-                cacheWidth: 224,
-                cacheHeight: 224,
-                errorBuilder: (_, __, ___) => _fallback(context),
-              ),
-      ),
-    );
-  }
-
-  Widget _fallback(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = isGold
-        ? AppColors.gold.withValues(
-            alpha: scheme.brightness == Brightness.dark ? 0.18 : 0.12,
-          )
-        : scheme.primaryContainer;
-    return ColoredBox(
-      color: background,
+      color: widget.isGold ? AppColors.goldSurface : AppColors.primarySurface,
       child: Icon(
-        isGold ? Icons.menu_book_rounded : fallbackIcon,
-        color: accent,
-        size: 26,
+        widget.isGold ? Icons.menu_book_rounded : widget.fallbackIcon,
+        color: widget.isGold ? AppColors.goldDark : AppColors.primary,
+        size: 32,
       ),
     );
   }

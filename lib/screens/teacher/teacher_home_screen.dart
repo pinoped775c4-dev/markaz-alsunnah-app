@@ -17,10 +17,12 @@ import 'pathway_detail_screen.dart';
 import 'students_section_screen.dart';
 import 'teachers_section_screen.dart';
 
-/// لوحة المعلم: تحية باسم المعلم + ملخص بسيط + قائمة مسارات تعليمية.
+/// لوحة المعلم: شعار بالأعلى + اسم الشيخ + صورة شخصية + زر إعدادات
+/// + 4 أيقونات دائرية للمستويات (بدون البطاقة الذهبية).
 ///
 /// حساب المشرف (معلم المتون والأوراد المخصص من الإدارة) يختلف:
-/// يعرض بطاقتي "المعلمون" للدخول في حساب أي معلم، و"الطلاب" للمتابعة.
+/// يعرض قسمين دائريتين — "المعلمون" للدخول في حساب أي معلم،
+/// و"الطلاب" للمتابعة المعتادة عبر المستويات.
 class TeacherHomeScreen extends StatelessWidget {
   const TeacherHomeScreen({super.key});
 
@@ -122,94 +124,41 @@ class TeacherHomeScreen extends StatelessWidget {
                         ),
                       ),
 
-                      // ترويسة هادئة للمركز مع ملخص العدد دون خلفية متدرجة.
+                      // ===== شعار المركز في الأعلى =====
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 20),
+                          child: Center(child: CircularLogo(size: 108)),
+                        ),
+                      ),
+
+                      // ===== اسم المركز =====
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-                          child: Builder(
-                            builder: (context) {
-                              final theme = Theme.of(context);
-                              final scheme = theme.colorScheme;
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: scheme.surface,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
-                                  border: Border.all(
-                                    color: scheme.outlineVariant,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const CircularLogo(
-                                      size: 64,
-                                      elevated: false,
+                          padding:
+                              const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                          child: Column(
+                            children: [
+                              Text(
+                                AppConstants.centerName,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: AppColors.primaryDark,
+                                      height: 1.4,
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            AppConstants.centerName,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: theme.textTheme.titleSmall
-                                                ?.copyWith(
-                                              fontSize: 13,
-                                              height: 1.3,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            AppConstants.centerLocation,
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                              color: scheme.brightness ==
-                                                      Brightness.dark
-                                                  ? AppColors.goldSoft
-                                                  : AppColors.goldDark,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: scheme.primaryContainer,
-                                        borderRadius: BorderRadius.circular(
-                                          AppRadius.md,
-                                        ),
-                                      ),
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 112,
-                                        ),
-                                        child: Text(
-                                          studentsCountLabel(totalStudents),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                            color: scheme.primary,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                AppConstants.centerLocation,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.gold),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -230,33 +179,41 @@ class TeacherHomeScreen extends StatelessWidget {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                            child: SectionItemList(
-                              items: [
-                                CircleSectionItem(
-                                  imageAsset: AppConstants.teachersSectionAsset,
-                                  label: 'المعلمون',
-                                  badge: const _TeachersCountBadge(),
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const TeachersSectionScreen(),
+                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: CircleSectionItem(
+                                    imageAsset:
+                                        AppConstants.teachersSectionAsset,
+                                    label: 'المعلمون',
+                                    badge: const _TeachersCountBadge(),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const TeachersSectionScreen(),
+                                      ),
                                     ),
                                   ),
                                 ),
-                                CircleSectionItem(
-                                  imageAsset: AppConstants.studentsSectionAsset,
-                                  label: 'الطلاب',
-                                  badge: CountBadge(
-                                    text: studentsCountLabel(totalStudents),
-                                    active: totalStudents > 0,
-                                  ),
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const StudentsSectionScreen(),
+                                Expanded(
+                                  child: CircleSectionItem(
+                                    imageAsset:
+                                        AppConstants.studentsSectionAsset,
+                                    label: 'الطلاب',
+                                    badge: CountBadge(
+                                      text:
+                                          studentsCountLabel(totalStudents),
+                                      active: totalStudents > 0,
+                                    ),
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const StudentsSectionScreen(),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -279,9 +236,10 @@ class TeacherHomeScreen extends StatelessWidget {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                            child: SectionItemList(
-                              items: [
+                                const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 for (final pathway in circlePathways)
                                   CircleSectionItem(
                                     imageAsset: AppConstants
@@ -292,9 +250,9 @@ class TeacherHomeScreen extends StatelessWidget {
                                         ? Icons.menu_book_rounded
                                         : Icons.school_rounded,
                                     badge: CountBadge(
-                                      text: studentsCountLabel(
-                                        counts[pathway.id] ?? 0,
-                                      ),
+                                      text:
+                                          studentsCountLabel(
+                                              counts[pathway.id] ?? 0),
                                       active: (counts[pathway.id] ?? 0) > 0,
                                       gold: pathway.id == 'quran',
                                     ),

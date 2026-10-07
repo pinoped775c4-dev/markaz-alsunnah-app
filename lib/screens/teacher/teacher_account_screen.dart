@@ -160,12 +160,13 @@ class TeacherAccountScreen extends StatelessWidget {
                   ),
                 ),
 
-                // ===== قائمة المستويات التعليمية =====
+                // ===== أيقونات المستويات: 4 أيقونات في صف واحد =====
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                    child: SectionItemList(
-                      items: [
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         for (final pathway in circlePathways)
                           CircleSectionItem(
                             imageAsset: AppConstants
@@ -177,8 +178,7 @@ class TeacherAccountScreen extends StatelessWidget {
                                 : Icons.school_rounded,
                             badge: CountBadge(
                               text: studentsCountLabel(
-                                counts[pathway.id] ?? 0,
-                              ),
+                                  counts[pathway.id] ?? 0),
                               active: (counts[pathway.id] ?? 0) > 0,
                               gold: pathway.id == 'quran',
                             ),

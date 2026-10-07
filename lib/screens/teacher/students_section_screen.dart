@@ -11,7 +11,8 @@ import '../../widgets/pathway_circle_item.dart';
 import 'pathway_detail_screen.dart';
 
 /// قسم "الطلاب" في حساب المشرف:
-/// متابعة المستويات التعليمية بقائمة واضحة؛ النقر يفتح تفاصيل المستوى.
+/// متابعة المستويات التعليمية كما هي تماماً في حساب المعلم المعتاد
+/// (4 أيقونات دائرية، والنقر يفتح تفاصيل المستوى: الدروس/المتون/القرآن).
 class StudentsSectionScreen extends StatelessWidget {
   const StudentsSectionScreen({super.key});
 
@@ -39,7 +40,7 @@ class StudentsSectionScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                 children: [
-                  // شعار المركز والهوية كما هي.
+                  // شعار المركز
                   const Padding(
                     padding: EdgeInsets.only(top: 10),
                     child: Center(child: CircularLogo(size: 96)),
@@ -76,9 +77,10 @@ class StudentsSectionScreen extends StatelessWidget {
                     subtitle: 'اختر مستوى لمتابعة طلابه ودروسه',
                   ),
 
-                  // قائمة المستويات: صف واضح لكل مستوى مع عدد طلابه.
-                  SectionItemList(
-                    items: [
+                  // أيقونات المستويات: 4 أيقونات في صف واحد
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       for (final pathway in circlePathways)
                         CircleSectionItem(
                           imageAsset: AppConstants
@@ -90,8 +92,7 @@ class StudentsSectionScreen extends StatelessWidget {
                               : Icons.school_rounded,
                           badge: CountBadge(
                             text: studentsCountLabel(
-                              counts[pathway.id] ?? 0,
-                            ),
+                                counts[pathway.id] ?? 0),
                             active: (counts[pathway.id] ?? 0) > 0,
                             gold: pathway.id == 'quran',
                           ),
